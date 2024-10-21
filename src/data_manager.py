@@ -1,0 +1,172 @@
+# src/data_manager.py
+
+import pytorch_lightning as pl
+from torch.utils.data import DataLoader
+from datasets import Dataset
+
+import pandas as pd
+import os
+import pyarrow.parquet as pq
+import pyarrow as pa
+from typing import Optional
+
+from transformers import (
+    AutoTokenizer, DataCollatorWithPadding, DataCollatorForLanguageModeling
+)
+from sklearn.model_selection import train_test_split
+
+class DataManager(pl.LightningDataModule):
+    def __init__(self, args):
+        super().__init__()
+        self.args = args
+        self.data_path = 'data/'
+        self.tokenizer = AutoTokenizer.from_pretrained(self.args.model_name)
+        self.tokenizer.add_special_tokens({'bos_token': '<|startoftext|>'})
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.data_collator = DataCollatorForLanguageModeling(
+            tokenizer=self.tokenizer, mlm=False
+        )
+        self.batch_size = self.args.batch_size
+        self.num_workers = self.args.num_workers
+        self.seed = self.args.seed
+
+    def choose_dataset(self):
+        """
+        Choose the dataset based on the dataset name and split.
+        """
+        if self.args.dataset == 'pandora':
+            base = 'all_comments_since_2015_chunk_0.csv'
+            path = f"{self.data_path}{self.args.dataset}/"
+            if self.args.split is not None:
+                if self.args.split == 'base':
+                    path += base
+                else:
+                    trait = self.args.split.split('-')[0]
+                    filename = '-'.join(self.args.split.split('-')[1:])
+                    path += f"splits_balanced/{self.args.split}.csv"
+            else:
+                path += base
+        else:
+            raise ValueError(f"Dataset '{self.args.dataset}' is not supported.")
+        return path
+
+    def prepare_splits(self):
+        """
+        Prepare the train, validation, and test splits.
+        """
+        path = self.choose_dataset()
+        dataset = pd.read_csv(path)
+        print(f"Original dataset: {len(dataset)}")
+        if self.args.dataset == 'pandora':
+            dataset = dataset.rename(columns={'body': 'text'})
+        train_val, test = train_test_split(dataset, test_size=0.05, random_state=self.args.seed)
+        train, val = train_test_split(train_val, test_size=float(0.05 / 0.95), random_state=self.args.seed)
+        val_subset = max(1, int(self.args.subset * 0.1)) if self.args.subset else None
+        test_subset = max(1, int(self.args.subset * 0.1)) if self.args.subset else None
+        train = train.sample(n=self.args.subset, random_state=self.args.seed) if self.args.subset else train
+        val = val.sample(n=val_subset, random_state=self.args.seed) if val_subset else val
+        test = test.sample(n=test_subset, random_state=self.args.seed) if test_subset else test
+        print(f"Train: {len(train)} | Val: {len(val)} | Test: {len(test)}")
+        print(f"Train: {len(train) / len(dataset) * 100:.2f}% | Val: {len(val) / len(dataset) * 100:.2f}% | Test: {len(test) / len(dataset) * 100:.2f}%")
+        return train, val, test
+
+    def tokenize_dataset(self, dataset: pd.DataFrame) -> Dataset:
+        """
+        Tokenize the dataset using the tokenizer.
+        """
+        def tokenize_seqs(examples: dict) -> dict:
+            texts_with_special_tokens = [self.tokenizer.bos_token + text + self.tokenizer.eos_token for text in examples['text']]
+            tokenized_output = self.tokenizer(
+                texts_with_special_tokens,
+                truncation=True,
+                max_length=768,
+                padding=False,
+            )
+            tokenized_output['labels'] = tokenized_output['input_ids'].copy()
+            return tokenized_output
+
+        if isinstance(dataset, pd.DataFrame):
+            dataset = Dataset.from_pandas(dataset)
+        tokenized_dataset = dataset.map(tokenize_seqs, batched=True)
+        columns_to_keep = ["input_ids", "attention_mask"]
+        tokenized_dataset = tokenized_dataset.remove_columns(
+            [col for col in tokenized_dataset.column_names if col not in columns_to_keep]
+        )
+        return tokenized_dataset
+
+    def save_tokenized_dataset(self, dataset: Dataset, trait_split: str, split_type: str, subset: Optional[int] = None):
+        """
+        Save the tokenized dataset as a Parquet file.
+        """
+        df = dataset.to_pandas()
+        subset_str = f"-{subset}" if subset else ""
+        filename = f"{trait_split}-{split_type}{subset_str}.parquet"
+        table = pa.Table.from_pandas(df)
+        save_to_path = f"{self.data_path}{self.args.dataset}/tokenized/{filename}"
+        os.makedirs(os.path.dirname(save_to_path), exist_ok=True)
+        pq.write_table(
+            table, save_to_path, compression='zstd', use_dictionary=True, version='2.0'
+        )
+
+    def load_tokenized_dataset(self, trait_split: str, split_type: str, subset: Optional[int] = None):
+        """
+        Load the tokenized dataset from a Parquet file.
+        """
+        subset_str = f"-{subset}" if subset else ""
+        filename = f"{trait_split}-{split_type}{subset_str}.parquet"
+        load_from_path = f"{self.data_path}{self.args.dataset}/tokenized/{filename}"
+        df = pd.read_parquet(load_from_path)
+        dataset = Dataset.from_pandas(df)
+        return dataset
+
+    def prepare_data(self):
+        # This method is called only once per run.
+        pass
+
+    def setup(self, args: Optional[object] = None):
+        train_df, val_df, test_df = self.prepare_splits()
+        try:
+            self.tokenized_train = self.load_tokenized_dataset(self.args.split, 'train', self.args.subset)
+            self.tokenized_val = self.load_tokenized_dataset(self.args.split, 'val', self.args.subset)
+            self.tokenized_test = self.load_tokenized_dataset(self.args.split, 'test', self.args.subset)
+        except FileNotFoundError:
+            self.tokenized_train = self.tokenize_dataset(train_df)
+            self.tokenized_val = self.tokenize_dataset(val_df)
+            self.tokenized_test = self.tokenize_dataset(test_df)
+            self.save_tokenized_dataset(self.tokenized_train, self.args.split, 'train', self.args.subset)
+            self.save_tokenized_dataset(self.tokenized_val, self.args.split, 'val', self.args.subset)
+            self.save_tokenized_dataset(self.tokenized_test, self.args.split, 'test', self.args.subset)
+
+    def train_dataloader(self):
+        return DataLoader(
+            self.tokenized_train,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            collate_fn=self.data_collator,
+            shuffle=True,
+            pin_memory=True,
+            prefetch_factor=2,
+            persistent_workers=self.num_workers > 0
+        )
+
+    def val_dataloader(self):
+        return DataLoader(
+            self.tokenized_val,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            collate_fn=self.data_collator,
+            pin_memory=True,
+            prefetch_factor=2,
+            persistent_workers=self.num_workers > 0
+        )
+
+    def test_dataloader(self):
+        return DataLoader(
+            self.tokenized_test,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            collate_fn=self.data_collator,
+            pin_memory=True,
+            prefetch_factor=2,
+            persistent_workers=self.num_workers > 0
+        )
