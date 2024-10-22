@@ -181,7 +181,6 @@ class Utilities:
         datasets.utils.logging.set_verbosity_error()
         try:
             import pandas as pd
-
             pd.options.mode.chained_assignment = None
         except ImportError:
             pass

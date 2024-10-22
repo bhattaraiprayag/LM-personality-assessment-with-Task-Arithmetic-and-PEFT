@@ -271,7 +271,7 @@ if __name__ == "__main__":
     WORKSPACE_PATH = "/pfs/work7/workspace/scratch/ma_pbhattar-kdd_cup_2023/"
     CURRENT_FOLDER = (
         WORKSPACE_PATH
-        + "thesis/Using Task Arithmetic with PEFT for LMs' personality assessment/"
+        + "thesis/LM personality assessment with Task Arithmetic and PEFT/"
     )
     DATA_FOLDER = os.path.join(CURRENT_FOLDER, "data/pandora/")
     COMMENTS_FILE = "all_comments_since_2015.csv"

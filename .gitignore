@@ -28,6 +28,7 @@ coverage.xml
 *.cover
 *.py,cover
 .pytest_cache/
+.ruff_cache/
 
 # Environments
 .env
