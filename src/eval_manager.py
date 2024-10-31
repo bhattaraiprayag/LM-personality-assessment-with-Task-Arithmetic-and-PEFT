@@ -4,10 +4,11 @@
 Evaluation management module for assessing model personality traits.
 """
 
+from typing import List, Optional
+
 import numpy as np
 import pandas as pd
 import torch
-from typing import List, Optional
 
 
 class EvalManager:
@@ -28,7 +29,8 @@ class EvalManager:
         instr_tag_after="",
     ):
         """
-        Extracts answers from the model given a question and possible answers.
+        Extracts token probabilities from the model given a question stem and possible
+        answers that are based on the BFI-10 inventory.
         """
         if values is None:
             values = [1] * len(answers)
@@ -77,7 +79,10 @@ class EvalManager:
                 batch_df["temp"] = temp
                 batch_df["answer"] = batch_df["answer"].replace("</s>", "N/A")
                 result_df = pd.concat([result_df, batch_df])
-        one_word_prompt = "Complete the following with a one-word adjective that aptly describes your personality: "
+        one_word_prompt = (
+            "Complete the following with a one-word adjective that aptly describes "
+            "your personality: "
+        )
         combined_one_word_question = one_word_prompt + question + " is"
         question_input_ids = tokenizer(
             f"{tokenizer.pad_token}{combined_one_word_question}", return_tensors="pt"
@@ -97,7 +102,7 @@ class EvalManager:
         decoded_answer = tokenizer.decode(
             generated_outputs[0], skip_special_tokens=True
         ).strip()
-        print(f"Model's continuation of the question: {decoded_answer}")
+        # print(f"Model's continuation of the question: {decoded_answer}")
 
         # Normalize the probabilities (for variant 1)
         if variant == 1:

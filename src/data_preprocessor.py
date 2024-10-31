@@ -223,9 +223,13 @@ class DataPreprocessor:
                 top_file_name = f"{trait}-top-{k}.csv"
                 bottom_file_name = f"{trait}-bot-{k}.csv"
                 top_file_path = os.path.join(current_split_folder, top_file_name)
-                balanced_top_k_comments.to_csv(top_file_path, index=False, encoding="utf-8")
+                balanced_top_k_comments.to_csv(
+                    top_file_path, index=False, encoding="utf-8"
+                )
                 bottom_file_path = os.path.join(current_split_folder, bottom_file_name)
-                balanced_bottom_k_comments.to_csv(bottom_file_path, index=False, encoding="utf-8")
+                balanced_bottom_k_comments.to_csv(
+                    bottom_file_path, index=False, encoding="utf-8"
+                )
                 print(
                     f"Saved balanced top {k}% comments for {trait} to {top_file_path}"
                 )
@@ -250,7 +254,9 @@ class DataPreprocessor:
         )
         self.ocean_comments.to_csv(ocean_comments_path, index=False, encoding="utf-8")
         self.mbti_comments.to_csv(mbti_comments_path, index=False, encoding="utf-8")
-        self.all_traits_comments.to_csv(all_traits_comments_path, index=False, encoding="utf-8")
+        self.all_traits_comments.to_csv(
+            all_traits_comments_path, index=False, encoding="utf-8"
+        )
         print(f"Saved OCEAN comments to {ocean_comments_path}")
         print(f"Saved MBTI comments to {mbti_comments_path}")
         print(f"Saved comments with all traits to {all_traits_comments_path}")

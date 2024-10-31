@@ -15,7 +15,9 @@ from argparse import Namespace
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
+import datasets
 import numpy as np
+import pandas as pd
 import pytorch_lightning as pl
 import torch
 import transformers
@@ -26,12 +28,11 @@ from pytorch_lightning.callbacks import (
     ModelCheckpoint,
     StochasticWeightAveraging,
 )
-from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.tuner import Tuner
 from pytorch_lightning.utilities import rank_zero_only
-from transformers import HfArgumentParser, set_seed as hf_set_seed
-
-import datasets
+from transformers import HfArgumentParser
+from transformers import set_seed as hf_set_seed
 
 from src.data_manager import DataManager
 from src.model_manager import CLMModel
@@ -40,7 +41,8 @@ from src.model_manager import CLMModel
 @dataclass
 class ExperimentArguments:
     """
-    Arguments needed to run task-arithmetic experiments with PEFT-based LLM fine-tuning for personality assessment.
+    Arguments needed to run task-arithmetic experiments with PEFT-based LLM fine-tuning for
+    personality assessment.
     """
 
     dataset: str = field(
@@ -50,7 +52,11 @@ class ExperimentArguments:
     split: Optional[str] = field(
         default="base",
         metadata={
-            "help": "| Dataset split to use. Based on top/bottom k-percentile authors comments for that trait label | ==> options: 'base', 'conscientiousness-top-5', 'openness-bot-5', ..."
+            "help": (
+                "| Dataset split to use. Based on top/bottom k-percentile authors comments "
+                "for that trait label | ==> options: 'base', 'conscientiousness-top-5', "
+                "'openness-bot-5', ..."
+            )
         },
     )
     subset: Optional[int] = field(
@@ -96,13 +102,19 @@ class ExperimentArguments:
     scale_peft: Optional[float] = field(
         default=None,
         metadata={
-            "help": "| Scaling factor for PEFT weights. If set to 1, PEFT module's weights are not being scaled. | ==> optional"
+            "help": (
+                "| Scaling factor for PEFT weights. If set to 1, PEFT module's weights are "
+                "not being scaled. | ==> optional"
+            )
         },
     )
     warmup_ratio: float = field(
         default=0.03,
         metadata={
-            "help": "Ratio of warmup steps for the scheduler. Acceptable range: from 0.03 to 0.1 | optional"
+            "help": (
+                "Ratio of warmup steps for the scheduler. Acceptable range: from 0.03 to "
+                "0.1 | optional"
+            )
         },
     )
     num_workers: Optional[int] = field(
@@ -119,7 +131,8 @@ class Utilities:
     @staticmethod
     def parse_arguments() -> ExperimentArguments:
         """
-        Parse command-line arguments for task-arithmetic experiments with PEFT-based LLM fine-tuning for personality assessment.
+        Parse command-line arguments for task-arithmetic experiments with PEFT-based LLM fine-tuning for
+        personality assessment.
         """
         parser = HfArgumentParser(ExperimentArguments)
         args = parser.parse_args_into_dataclasses()[0]
@@ -179,11 +192,7 @@ class Utilities:
         logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
         logging.getLogger("torch").setLevel(logging.ERROR)
         datasets.utils.logging.set_verbosity_error()
-        try:
-            import pandas as pd
-            pd.options.mode.chained_assignment = None
-        except ImportError:
-            pass
+        pd.options.mode.chained_assignment = None
 
     @staticmethod
     def get_workers() -> int:
@@ -212,6 +221,7 @@ class Utilities:
         """
         Generate a unique identifier for the experiment.
         """
+        args.model_name = args.model_name.lower()
         args_str = json.dumps(vars(args), sort_keys=True)
         experiment_id = hashlib.sha256(args_str.encode()).hexdigest()[:10]
         return experiment_id
@@ -224,9 +234,7 @@ class Utilities:
         """
         Save the experiment metadata to a JSON file.
         """
-        metadata_path = os.path.join(
-            output_dir, "experiment_metadata.json"
-        )
+        metadata_path = os.path.join(output_dir, "experiment_metadata.json")
         if os.path.exists(metadata_path):
             with open(metadata_path, "r", encoding="utf-8") as f:
                 try:
@@ -295,19 +303,14 @@ class Utilities:
         """
         Sanitize the results to ensure JSON compatibility.
         """
-        if isinstance(data, dict):
-            return {k: Utilities.sanitize_results(v) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [Utilities.sanitize_results(v) for v in data]
-        elif isinstance(data, float):
-            if math.isinf(data):
-                return "Infinity" if data > 0 else "-Infinity"
-            elif math.isnan(data):
-                return "NaN"
-            else:
-                return data
-        else:
-            return data
+        handlers = {
+            dict: lambda d: {k: Utilities.sanitize_results(v) for k, v in d.items()},
+            list: lambda d: [Utilities.sanitize_results(v) for v in d],
+            float: lambda d: (
+                "Infinity" if d > 0 else "-Infinity" if math.isinf(d) else "NaN"
+            ) if math.isnan(d) or math.isinf(d) else d,
+        }
+        return handlers.get(type(data), lambda d: d)(data)
 
     @staticmethod
     def find_max_batch_size(

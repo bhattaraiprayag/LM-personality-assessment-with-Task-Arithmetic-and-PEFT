@@ -14,6 +14,7 @@ from src.data_manager import DataManager
 from src.eval_manager import EvalManager
 from src.model_manager import CLMModel
 from src.utilities import Utilities
+
 Utilities.suppress_warnings()
 
 
@@ -55,7 +56,9 @@ def initialize_model(args, data_manager, warmup_steps):
     return model
 
 
-def perform_evaluation(model, tokenizer, temperatures, sample_question, possible_answers):
+def perform_evaluation(
+    model, tokenizer, temperatures, sample_question, possible_answers
+):
     """
     Perform personality evaluation before and after training.
     """
@@ -90,7 +93,7 @@ def main():
 
     # Initialize model
     model = initialize_model(args, data_manager, warmup_steps)
-    
+
     # Define Evaluation Parameters
     temperatures = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
     sample_question = "I see myself as someone who"
@@ -106,7 +109,7 @@ def main():
         "gets nervous easily.",
         "has an active imagination.",
     ]
-    
+
     # Pre-Training Evaluation
     personality_eval_pre = perform_evaluation(
         model, tokenizer, temperatures, sample_question, possible_answers
@@ -132,7 +135,7 @@ def main():
         train_dataloaders=data_manager.train_dataloader(),
         val_dataloaders=data_manager.val_dataloader(),
     )
-    
+
     # Collect Training Results
     results = {}
     train_metrics = trainer.callback_metrics
@@ -140,7 +143,7 @@ def main():
         k: v.item() if isinstance(v, torch.Tensor) else v
         for k, v in train_metrics.items()
     }
-    
+
     # Testing
     test_results = trainer.test(model, dataloaders=data_manager.test_dataloader())
     if test_results:
@@ -149,12 +152,12 @@ def main():
             k: v.item() if isinstance(v, torch.Tensor) else v
             for k, v in test_metrics.items()
         }
-    
+
     # Post-Training Evaluation
     personality_eval_post = perform_evaluation(
         model, tokenizer, temperatures, sample_question, possible_answers
     )
-    
+
     # Save Results
     personality_eval_pre_dict = personality_eval_pre.to_dict(orient="records")
     personality_eval_post_dict = personality_eval_post.to_dict(orient="records")

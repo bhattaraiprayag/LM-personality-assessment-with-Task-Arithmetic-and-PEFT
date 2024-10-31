@@ -5,19 +5,28 @@ Data management module for handling datasets and data loaders.
 """
 
 import os
+import random
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytorch_lightning as pl
+import torch
 from datasets import Dataset
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
-from transformers import (
-    AutoTokenizer,
-    DataCollatorForLanguageModeling,
-)
+from transformers import AutoTokenizer, DataCollatorForLanguageModeling
+
+
+def seed_worker(worker_id):
+    """
+    Initializes a unique random seed for each worker process in DataLoader.
+    """
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
 
 
 class DataManager(pl.LightningDataModule):
@@ -41,6 +50,8 @@ class DataManager(pl.LightningDataModule):
         self.batch_size = self.args.batch_size
         self.num_workers = self.args.num_workers
         self.seed = self.args.seed
+        self.generator = torch.Generator()
+        self.generator.manual_seed(self.seed)
 
     def choose_dataset(self):
         """
@@ -67,7 +78,7 @@ class DataManager(pl.LightningDataModule):
         """
         path = self.choose_dataset()
         dataset = pd.read_csv(path)
-        print(f"Original dataset: {len(dataset)}")
+        print(f"Original Dataset: {len(dataset)}")
         if self.args.dataset == "pandora":
             dataset = dataset.rename(columns={"body": "text"})
         train_val, test = train_test_split(
@@ -91,11 +102,10 @@ class DataManager(pl.LightningDataModule):
             if test_subset
             else test
         )
-        print(f"Train: {len(train)} | Val: {len(val)} | Test: {len(test)}")
         print(
-            f"Train: {len(train) / len(dataset) * 100:.2f}% | "
-            f"Val: {len(val) / len(dataset) * 100:.2f}% | "
-            f"Test: {len(test) / len(dataset) * 100:.2f}%"
+            f"Train: {len(train)} / {len(train) / len(dataset) * 100:.2f}% | "
+            f"Val: {len(val)} / {len(val) / len(dataset) * 100:.2f}% | "
+            f"Test: {len(test)} / {len(test) / len(dataset) * 100:.2f}%"
         )
         return train, val, test
 
@@ -143,7 +153,7 @@ class DataManager(pl.LightningDataModule):
         """
         df = dataset.to_pandas()
         subset_str = f"-{subset}" if subset else ""
-        filename = f"{trait_split}-{split_type}{subset_str}.parquet"
+        filename = f"{trait_split}-{split_type}-seed{self.seed}{subset_str}.parquet"
         table = pa.Table.from_pandas(df)
         save_to_path = f"{self.data_path}{self.args.dataset}/tokenized/{filename}"
         os.makedirs(os.path.dirname(save_to_path), exist_ok=True)
@@ -158,7 +168,7 @@ class DataManager(pl.LightningDataModule):
         Load the tokenized dataset from a Parquet file.
         """
         subset_str = f"-{subset}" if subset else ""
-        filename = f"{trait_split}-{split_type}{subset_str}.parquet"
+        filename = f"{trait_split}-{split_type}-seed{self.seed}{subset_str}.parquet"
         load_from_path = f"{self.data_path}{self.args.dataset}/tokenized/{filename}"
         df = pd.read_parquet(load_from_path)
         dataset = Dataset.from_pandas(df)
@@ -201,6 +211,9 @@ class DataManager(pl.LightningDataModule):
             )
 
     def train_dataloader(self):
+        """
+        Create the train dataloader.
+        """
         return DataLoader(
             self.tokenized_train,
             batch_size=self.batch_size,
@@ -210,9 +223,14 @@ class DataManager(pl.LightningDataModule):
             pin_memory=True,
             prefetch_factor=2,
             persistent_workers=self.num_workers > 0,
+            worker_init_fn=seed_worker,
+            generator=self.generator,
         )
 
     def val_dataloader(self):
+        """
+        Create the validation dataloader.
+        """
         return DataLoader(
             self.tokenized_val,
             batch_size=self.batch_size,
@@ -221,9 +239,14 @@ class DataManager(pl.LightningDataModule):
             pin_memory=True,
             prefetch_factor=2,
             persistent_workers=self.num_workers > 0,
+            worker_init_fn=seed_worker,
+            generator=self.generator,
         )
 
     def test_dataloader(self):
+        """
+        Create the test dataloader.
+        """
         return DataLoader(
             self.tokenized_test,
             batch_size=self.batch_size,
@@ -232,4 +255,6 @@ class DataManager(pl.LightningDataModule):
             pin_memory=True,
             prefetch_factor=2,
             persistent_workers=self.num_workers > 0,
+            worker_init_fn=seed_worker,
+            generator=self.generator,
         )
