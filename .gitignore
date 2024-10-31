@@ -28,6 +28,7 @@ coverage.xml
 *.cover
 *.py,cover
 .pytest_cache/
+.ruff_cache/
 
 # Environments
 .env
@@ -95,3 +96,4 @@ lora_weights/
 old_code_src/
 junk/
 notebooks/
+src/viz_guide.md

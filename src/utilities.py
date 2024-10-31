@@ -1,146 +1,174 @@
 # src/utilities.py
 
-import warnings
-warnings.filterwarnings("ignore")
+"""
+Utility functions and classes for the personality assessment project.
+"""
 
-from typing import Optional, Tuple, List
-from dataclasses import dataclass, field
-from transformers import HfArgumentParser
-from lightning.pytorch import seed_everything
-import GPUtil
-import os
-import torch
-from dotenv import load_dotenv
-import json
 import hashlib
-import wandb
-import pytorch_lightning as pl
-from pytorch_lightning.tuner import Tuner
-from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, StochasticWeightAveraging
-from pytorch_lightning.utilities import rank_zero_only
-from argparse import Namespace
+import json
+import logging
 import math
-
 import os
 import random
-import numpy as np
-import torch
-import pytorch_lightning as pl
-from transformers import set_seed as hf_set_seed
-
 import warnings
-import os
-import logging
-import transformers
-import torch
+from argparse import Namespace
+from dataclasses import dataclass, field
+from typing import List, Optional, Tuple
+
 import datasets
+import numpy as np
+import pandas as pd
 import pytorch_lightning as pl
+import torch
+import transformers
+from dotenv import load_dotenv
+from lightning.pytorch import seed_everything
+from pytorch_lightning.callbacks import (
+    EarlyStopping,
+    ModelCheckpoint,
+    StochasticWeightAveraging,
+)
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from pytorch_lightning.tuner import Tuner
+from pytorch_lightning.utilities import rank_zero_only
+from transformers import HfArgumentParser
+from transformers import set_seed as hf_set_seed
 
 from src.data_manager import DataManager
 from src.model_manager import CLMModel
 
+
 @dataclass
 class ExperimentArguments:
     """
-    Arguments needed to run task-arithmetic experiments with PEFT-based LLM fine-tuning for personality assessment.
+    Arguments needed to run task-arithmetic experiments with PEFT-based LLM fine-tuning for
+    personality assessment.
     """
+
     dataset: str = field(
         default="pandora",
-        metadata={"help": "| Dataset to use | ==> options: 'pandora', 'toxicity', ..."}
+        metadata={"help": "| Dataset to use | ==> options: 'pandora', 'toxicity', ..."},
     )
     split: Optional[str] = field(
-        default='base',
-        metadata={"help": "| Dataset split to use. Based on top/bottom k-percentile authors comments for that trait label | ==> options: 'base', 'conscientiousness-top-5', 'openness-bot-5', ..."}
+        default="base",
+        metadata={
+            "help": (
+                "| Dataset split to use. Based on top/bottom k-percentile authors comments "
+                "for that trait label | ==> options: 'base', 'conscientiousness-top-5', "
+                "'openness-bot-5', ..."
+            )
+        },
     )
     subset: Optional[int] = field(
         default=None,
-        metadata={"help": "| Number of samples to subset (to ease prototyping) | ==> optional"}
+        metadata={
+            "help": "| Number of samples to subset (to ease prototyping) | ==> optional"
+        },
     )
     output: str = field(
         default="outputs/",
-        metadata={"help": "| Directory to experiment outputs | ==> required"}
+        metadata={"help": "| Directory to experiment outputs | ==> required"},
     )
     model_name: str = field(
         default="gpt2",
-        metadata={"help": "| Pre-trained model to use | ==> options: 'gpt2', 'gpt3', ..."}
+        metadata={
+            "help": "| Pre-trained model to use | ==> options: 'gpt2', 'gpt3', ..."
+        },
     )
     seed: int = field(
-        default=183,
-        metadata={"help": "| Seed for reproducibility | ==> required"}
+        default=183, metadata={"help": "| Seed for reproducibility | ==> required"}
     )
     epochs: int = field(
-        default=1,
-        metadata={"help": "| Number of epochs for training | ==> required"}
+        default=1, metadata={"help": "| Number of epochs for training | ==> required"}
     )
     batch_size: int = field(
-        default=16,
-        metadata={"help": "| Batch size for training | ==> required"}
+        default=16, metadata={"help": "| Batch size for training | ==> required"}
     )
     lr: float = field(
-        default=1e-5,
-        metadata={"help": "| Learning rate for training | ==> required"}
+        default=1e-5, metadata={"help": "| Learning rate for training | ==> required"}
     )
     grad_steps: int = field(
         default=4,
-        metadata={"help": "| Number of gradient steps to accumulate before backprop | ==> required"}
+        metadata={
+            "help": "| Number of gradient steps to accumulate before backprop | ==> required"
+        },
     )
     use_peft: Optional[str] = field(
         default=None,
-        metadata={"help": "| PEFT method to use | ==> options: 'lora', 'prompt-tuning', ..."}
+        metadata={
+            "help": "| PEFT method to use | ==> options: 'lora', 'prompt-tuning', ..."
+        },
     )
     scale_peft: Optional[float] = field(
         default=None,
-        metadata={"help": "| Scaling factor for PEFT weights. If set to 1, PEFT module's weights are not being scaled. | ==> optional"}
+        metadata={
+            "help": (
+                "| Scaling factor for PEFT weights. If set to 1, PEFT module's weights are "
+                "not being scaled. | ==> optional"
+            )
+        },
     )
     warmup_ratio: float = field(
         default=0.03,
-        metadata={"help": "Ratio of warmup steps for the scheduler. Acceptable range: from 0.03 to 0.1 | optional"}
+        metadata={
+            "help": (
+                "Ratio of warmup steps for the scheduler. Acceptable range: from 0.03 to "
+                "0.1 | optional"
+            )
+        },
     )
     num_workers: Optional[int] = field(
         default=None,
-        metadata={"help": "Number of CPU workers for DataLoader | optional"}
+        metadata={"help": "Number of CPU workers for DataLoader | optional"},
     )
 
 
 class Utilities:
+    """
+    A collection of static utility methods for experiment setup and management.
+    """
+
     @staticmethod
     def parse_arguments() -> ExperimentArguments:
         """
-        Parse command-line arguments for task-arithmetic experiments with PEFT-based LLM fine-tuning for personality assessment.
+        Parse command-line arguments for task-arithmetic experiments with PEFT-based LLM fine-tuning for
+        personality assessment.
         """
         parser = HfArgumentParser(ExperimentArguments)
         args = parser.parse_args_into_dataclasses()[0]
         if args.use_peft is not None and args.scale_peft is None:
-            warnings.warn("'scale_peft' is required when 'use_peft' is set. Setting to default value of 1.0.")
+            warnings.warn(
+                "'scale_peft' is required when 'use_peft' is set. Setting to default value of 1.0."
+            )
             args.scale_peft = 1.0
         if args.use_peft is None:
             warnings.warn("'scale_peft' is ignored because 'use_peft' is not set.")
         if args.num_workers is None:
             args.num_workers = Utilities.get_workers()
         return args
-    
+
     @staticmethod
     def set_seed(seed: int) -> None:
         """
         Set seed for reproducibility.
         """
-        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"               # VITAL: This has to come before torch.backends.cudnn.deterministic = True
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = (
+            ":4096:8"  # VITAL: This has to come before torch.backends.cudnn.deterministic = True
+        )
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
         torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed) 
+        torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
         hf_set_seed(seed)
-        os.environ['PYTHONHASHSEED'] = str(seed)
-        os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
-        os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-        torch.set_float32_matmul_precision('medium')
+        os.environ["PYTHONHASHSEED"] = str(seed)
+        os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        torch.set_float32_matmul_precision("medium")
         seed_everything(seed)
-    
+
     @staticmethod
     def suppress_warnings():
         """
@@ -148,8 +176,12 @@ class Utilities:
         """
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
         warnings.filterwarnings("ignore")
-        warnings.filterwarnings("ignore", category=UserWarning, message="TypedStorage is deprecated")
-        warnings.filterwarnings("ignore", category=UserWarning, message="torch.distributed.*")
+        warnings.filterwarnings(
+            "ignore", category=UserWarning, message="TypedStorage is deprecated"
+        )
+        warnings.filterwarnings(
+            "ignore", category=UserWarning, message="torch.distributed.*"
+        )
         warnings.filterwarnings("ignore", category=FutureWarning, module="transformers")
         warnings.filterwarnings("ignore", category=FutureWarning, module="datasets")
         warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -160,18 +192,9 @@ class Utilities:
         logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
         logging.getLogger("torch").setLevel(logging.ERROR)
         datasets.utils.logging.set_verbosity_error()
-        try:
-            import numpy as np
-            np.seterr(all='ignore') 
-        except ImportError:
-            pass
-        try:
-            import pandas as pd
-            pd.options.mode.chained_assignment = None 
-        except ImportError:
-            pass
+        pd.options.mode.chained_assignment = None
 
-    @staticmethod    
+    @staticmethod
     def get_workers() -> int:
         """
         Get the optimal number of workers for data loading.
@@ -179,7 +202,7 @@ class Utilities:
         num_cpu_cores = os.cpu_count()
         optimal_workers = min(16, max(1, num_cpu_cores // 2))
         return optimal_workers
-    
+
     @staticmethod
     def identify_devices() -> List[int]:
         """
@@ -192,37 +215,49 @@ class Utilities:
             devices = []
             print("No CUDA devices are available.")
         return devices
-    
+
     @staticmethod
     def generate_experiment_id(args: ExperimentArguments) -> str:
         """
         Generate a unique identifier for the experiment.
         """
+        args.model_name = args.model_name.lower()
         args_str = json.dumps(vars(args), sort_keys=True)
         experiment_id = hashlib.sha256(args_str.encode()).hexdigest()[:10]
         return experiment_id
-    
+
     @staticmethod
-    def save_experiment_metadata(args: ExperimentArguments, experiment_id: str, output_dir: str) -> None:
+    @rank_zero_only
+    def save_experiment_metadata(
+        args: ExperimentArguments, experiment_id: str, output_dir: str
+    ) -> None:
         """
         Save the experiment metadata to a JSON file.
         """
-        metadata_path = os.path.join(output_dir, 'experiment_metadata.json')
+        metadata_path = os.path.join(output_dir, "experiment_metadata.json")
         if os.path.exists(metadata_path):
-            with open(metadata_path, 'r') as f:
-                metadata = json.load(f)
+            with open(metadata_path, "r", encoding="utf-8") as f:
+                try:
+                    metadata = json.load(f)
+                except json.JSONDecodeError:
+                    metadata = {}
         else:
             metadata = {}
         metadata[experiment_id] = vars(args)
-        with open(metadata_path, 'w') as f:
+        with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=4)
 
     @staticmethod
     @rank_zero_only
-    def update_experiment_metadata(output_dir: str, experiment_id: str, results: dict) -> None:
-        metadata_path = os.path.join(output_dir, 'experiment_metadata.json')
+    def update_experiment_metadata(
+        output_dir: str, experiment_id: str, results: dict
+    ) -> None:
+        """
+        Update the experiment metadata with results.
+        """
+        metadata_path = os.path.join(output_dir, "experiment_metadata.json")
         if os.path.exists(metadata_path):
-            with open(metadata_path, 'r') as f:
+            with open(metadata_path, "r", encoding="utf-8") as f:
                 try:
                     metadata = json.load(f)
                 except json.JSONDecodeError:
@@ -230,50 +265,60 @@ class Utilities:
         else:
             raise FileNotFoundError(f"Experiment metadata not found at {metadata_path}")
         if experiment_id in metadata:
-            metadata[experiment_id]['results'] = Utilities.sanitize_results(results)
+            metadata[experiment_id]["results"] = Utilities.sanitize_results(results)
         else:
-            metadata[experiment_id] = {'results': Utilities.sanitize_results(results)}
-        with open(metadata_path, 'w') as f:
+            metadata[experiment_id] = {"results": Utilities.sanitize_results(results)}
+        with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=4)
         print(f"Experiment metadata updated with results at {metadata_path}")
 
     @staticmethod
     @rank_zero_only
-    def save_experiment_results(output_dir: str, experiment_id: str, results: dict) -> None:
+    def save_experiment_results(
+        output_dir: str, experiment_id: str, results: dict
+    ) -> None:
+        """
+        Save the experiment results to a JSON file.
+        """
         results = Utilities.sanitize_results(results)
-        results_path = os.path.join(output_dir, 'results.json')
+        results_path = os.path.join(output_dir, "results.json")
         if os.path.exists(results_path):
-            with open(results_path, 'r') as f:
+            with open(results_path, "r", encoding="utf-8") as f:
                 try:
                     existing_results = json.load(f)
                 except json.JSONDecodeError:
-                    print(f"Warning: {results_path} is corrupted. Overwriting with new data.")
+                    print(
+                        f"Warning: {results_path} is corrupted. Overwriting with new data."
+                    )
                     existing_results = {}
         else:
             existing_results = {}
         existing_results[experiment_id] = results
-        with open(results_path, 'w') as f:
+        with open(results_path, "w", encoding="utf-8") as f:
             json.dump(existing_results, f, indent=4)
         print(f"Experiment results saved to {results_path}")
 
     @staticmethod
     def sanitize_results(data):
-        if isinstance(data, dict):
-            return {k: Utilities.sanitize_results(v) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [Utilities.sanitize_results(v) for v in data]
-        elif isinstance(data, float):
-            if math.isinf(data):
-                return 'Infinity' if data > 0 else '-Infinity'
-            elif math.isnan(data):
-                return 'NaN'
-            else:
-                return data
-        else:
-            return data
-    
+        """
+        Sanitize the results to ensure JSON compatibility.
+        """
+        handlers = {
+            dict: lambda d: {k: Utilities.sanitize_results(v) for k, v in d.items()},
+            list: lambda d: [Utilities.sanitize_results(v) for v in d],
+            float: lambda d: (
+                "Infinity" if d > 0 else "-Infinity" if math.isinf(d) else "NaN"
+            ) if math.isnan(d) or math.isinf(d) else d,
+        }
+        return handlers.get(type(data), lambda d: d)(data)
+
     @staticmethod
-    def find_max_batch_size(model: torch.nn.Module, tokenizer, device: torch.device, args: ExperimentArguments) -> int:
+    def find_max_batch_size(
+        model: torch.nn.Module,
+        tokenizer,
+        device: torch.device,
+        args: ExperimentArguments,
+    ) -> int:
         """
         Find the maximum batch size that can fit on the GPU.
         """
@@ -284,20 +329,19 @@ class Utilities:
         encoded_text = tokenizer(
             dummy_text,
             truncation=True,
-            padding='max_length',
+            padding="max_length",
             max_length=tokenizer.model_max_length,
-            return_tensors='pt'
+            return_tensors="pt",
         )
-        input_ids = encoded_text['input_ids'].to(device)
-        attention_mask = encoded_text['attention_mask'].to(device)
+        input_ids = encoded_text["input_ids"].to(device)
+        attention_mask = encoded_text["attention_mask"].to(device)
         with torch.no_grad():
             while True:
                 try:
                     input_ids_batch = input_ids.repeat(batch_size, 1)
                     attention_mask_batch = attention_mask.repeat(batch_size, 1)
                     outputs = model(
-                        input_ids=input_ids_batch,
-                        attention_mask=attention_mask_batch
+                        input_ids=input_ids_batch, attention_mask=attention_mask_batch
                     )
                     batch_size *= 2
                 except RuntimeError:
@@ -305,14 +349,18 @@ class Utilities:
                     break
         print(f"Maximum batch size: {batch_size}")
         return batch_size
-    
+
     @staticmethod
-    def find_optimal_lr(model: torch.nn.Module, train_loader: torch.utils.data.DataLoader, args: ExperimentArguments) -> float:
+    def find_optimal_lr(
+        model: torch.nn.Module,
+        train_loader: torch.utils.data.DataLoader,
+        args: ExperimentArguments,
+    ) -> float:
         """
         Find the optimal learning rate using the learning rate finder.
         """
         initial_lr = args.lr
-        output_dir_for_tuner = os.path.join(args.output, 'lr_finder')
+        output_dir_for_tuner = os.path.join(args.output, "lr_finder")
         trainer = pl.Trainer(
             default_root_dir=output_dir_for_tuner,
             max_epochs=1,
@@ -343,7 +391,7 @@ class Utilities:
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
         torch.cuda.reset_peak_memory_stats()
-    
+
     @staticmethod
     def load_env(dotenv_path: str) -> None:
         """
@@ -357,35 +405,40 @@ class Utilities:
             else:
                 print("WandB API token not found.")
         else:
-            print(f".env file not found at {dotenv_path}. Please ensure the correct path.")
+            print(
+                f".env file not found at {dotenv_path}. Please ensure the correct path."
+            )
 
     @staticmethod
-    def create_loggers(output_dir: str, experiment_id: str, args: ExperimentArguments) -> tuple:
+    def create_loggers(
+        output_dir: str, experiment_id: str, args: ExperimentArguments
+    ) -> tuple:
         """
         Create logging objects for TensorBoard and Weights & Biases.
         """
-        tb_name = 'tb_logs'
-        wandb_project = """Master's Thesis"""
-        tb_logger = TensorBoardLogger(
-            save_dir=output_dir,
-            name=tb_name
-        )
+        tb_name = "tb_logs"
+        wandb_project = "Master's Thesis"
+        tb_logger = TensorBoardLogger(save_dir=output_dir, name=tb_name)
         wandb_logger = WandbLogger(
             project=wandb_project,
             save_dir=output_dir,
             name=experiment_id,
         )
+
         @rank_zero_only
         def log_wandb_hparams() -> None:
-            wandb_logger.log_hyperparams({
-                'batch_size': args.batch_size,
-                'learning_rate': args.lr,
-                'epochs': args.epochs,
-                'seed': args.seed
-            })
+            wandb_logger.log_hyperparams(
+                {
+                    "batch_size": args.batch_size,
+                    "learning_rate": args.lr,
+                    "epochs": args.epochs,
+                    "seed": args.seed,
+                }
+            )
+
         log_wandb_hparams()
         return tb_logger, wandb_logger
-    
+
     @staticmethod
     def create_callbacks(output_dir: str, args: ExperimentArguments) -> tuple:
         """
@@ -393,30 +446,33 @@ class Utilities:
         """
         best_model_checkpoint = ModelCheckpoint(
             dirpath=output_dir,
-            filename='best-model-{epoch:02d}-{val_loss:.4f}',
-            monitor='val_loss',
-            mode='min',
+            filename="best-model-{epoch:02d}-{val_loss:.4f}",
+            monitor="val_loss",
+            mode="min",
             save_top_k=1,
-            save_weights_only=True
+            save_weights_only=True,
         )
         epoch_checkpoint = ModelCheckpoint(
             dirpath=output_dir,
-            filename='epoch-{epoch:02d}',
+            filename="epoch-{epoch:02d}",
             save_top_k=-1,
-            save_weights_only=False
+            save_weights_only=False,
         )
         early_stopping_callback = EarlyStopping(
-            monitor='val_loss',
-            patience=3,
-            mode='min'
+            monitor="val_loss", patience=3, mode="min"
         )
         swa_callback = StochasticWeightAveraging(
             swa_lrs=args.lr * 5,
             swa_epoch_start=1,
             annealing_epochs=1,
-            annealing_strategy='cos'
+            annealing_strategy="cos",
         )
-        return best_model_checkpoint, epoch_checkpoint, early_stopping_callback, swa_callback
+        return (
+            best_model_checkpoint,
+            epoch_checkpoint,
+            early_stopping_callback,
+            swa_callback,
+        )
 
     @staticmethod
     def set_paths(args: ExperimentArguments) -> tuple:
@@ -430,19 +486,20 @@ class Utilities:
         Utilities.save_experiment_metadata(args, experiment_id, output_dir)
         output_dir_exp = os.path.join(output_dir, experiment_id)
         os.makedirs(output_dir_exp, exist_ok=True)
-        args.base_output_dir = output_dir  # Store base output directory
+        args.base_output_dir = output_dir
         args.output = output_dir_exp
         return output_dir_exp, experiment_id, args
-    
+
     @staticmethod
     def print_trainable_params(model: torch.nn.Module) -> None:
         """
-        Print the number of trainable GPT2 parameters and trainable LoRA parameters.
+        Print the number of trainable parameters.
         """
-        total_params = sum(p.numel() for p in model.parameters())
-        total_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        total_trainable_params = sum(
+            p.numel() for p in model.parameters() if p.requires_grad
+        )
         print(f"Total trainable parameters: {total_trainable_params}")
-        lora_text = 'lora' if 'lora' in model.state_dict() else 'LoRA'
+        lora_text = "lora" if "lora" in model.state_dict() else "LoRA"
         if lora_text in model.state_dict():
             lora_params = sum(p.numel() for p in model.state_dict()[lora_text].values())
             print(f"Total trainable {lora_text} parameters: {lora_params}")
@@ -456,27 +513,30 @@ class Utilities:
         check_data_manager.setup()
         tokenizer = check_data_manager.tokenizer
         check_train_loader = check_data_manager.train_dataloader()
-        check_model_hparams = Namespace(
+        model_hparams = Namespace(
             lr=args.lr,
             epochs=args.epochs,
             warmup_steps=1,
-            accumulate_grad_batches=int(args.grad_steps)
+            accumulate_grad_batches=int(args.grad_steps),
         )
-        model = CLMModel(args.model_name, check_model_hparams, args.use_peft, args.scale_peft, tokenizer)
-        # # max_batch_size = Utilities.find_max_batch_size(model, tokenizer, torch.device('cuda'), args)
-        # # # args.batch_size = max_batch_size
-        # print(f"Refining learning rate...")
+        model = CLMModel(
+            args.model_name,
+            model_hparams,
+            args.use_peft,
+            args.scale_peft,
+            tokenizer,
+        )
         optimal_lr = Utilities.find_optimal_lr(model, check_train_loader, args)
         args.optimal_lr = optimal_lr
         return args
-    
+
     @staticmethod
     def housekeep() -> Tuple[ExperimentArguments, List, List, dict]:
         """
         Perform housekeeping tasks before training.
         """
         args = Utilities.parse_arguments()
-        dotenv_path = os.path.expanduser('./.env')
+        dotenv_path = os.path.expanduser("./.env")
         Utilities.load_env(dotenv_path)
         Utilities.set_seed(args.seed)
         devices = Utilities.identify_devices()
@@ -484,24 +544,24 @@ class Utilities:
             multi_gpu = False
             devices = 1
             args.devices = 1
-            accelerator = 'cpu'
+            accelerator = "cpu"
             args.accelerator = accelerator
         elif len(devices) == 1:
             multi_gpu = False
-            accelerator = 'gpu'
+            accelerator = "gpu"
             args.accelerator = accelerator
             args.devices = devices
         else:
             multi_gpu = len(devices) > 1
-            accelerator = 'auto'
+            accelerator = "auto"
             args.accelerator = accelerator
             args.devices = devices
-        ava_device = torch.cuda.current_device() if torch.cuda.is_available() else 'cpu'
+        ava_device = torch.cuda.current_device() if torch.cuda.is_available() else "cpu"
         device_config = {
-            'devices': devices,
-            'multi_gpu': multi_gpu,
-            'current_device': ava_device,
-            'num_workers': args.num_workers
+            "devices": devices,
+            "multi_gpu": multi_gpu,
+            "current_device": ava_device,
+            "num_workers": args.num_workers,
         }
         args = Utilities.refine_hparams(args)
         output_dir_exp, exp_id, args = Utilities.set_paths(args)

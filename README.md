@@ -112,10 +112,10 @@ Evaluation is conducted using custom methods that align the model's responses wi
 
 ## How to Run the Code
 ### Required Arguments
-- `--data_path`: Path to the dataset directory.
-- `--model_name`: Pre-trained model name (e.g., `gpt2`).
-- `--batch_size`: Batch size for training.
-- `--epochs`: Number of epochs.
+- `--data_path`: Path to the dataset directory | ==> options: 'pandora', 'toxicity', ...
+- `--model_name`: Pre-trained model to use | ==> options: `gpt2`, `gpt3`, ...
+- `--batch_size`: Batch size for training | ==> required
+- `--epochs`: Number of epochs for training | ==> required
 - `--subset`: Optional, subset size for prototyping.
 
 ### Example Commands
