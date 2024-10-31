@@ -493,9 +493,8 @@ class Utilities:
     @staticmethod
     def print_trainable_params(model: torch.nn.Module) -> None:
         """
-        Print the number of trainable GPT2 parameters and trainable LoRA parameters.
+        Print the number of trainable parameters.
         """
-        total_params = sum(p.numel() for p in model.parameters())
         total_trainable_params = sum(
             p.numel() for p in model.parameters() if p.requires_grad
         )

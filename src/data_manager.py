@@ -179,7 +179,6 @@ class DataManager(pl.LightningDataModule):
         Placeholder method for data preparation.
         """
         # # TO DO: To be implemented later.
-        pass
 
     def setup(self, stage: Optional[str] = None):
         """
