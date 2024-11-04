@@ -5,7 +5,7 @@ Module managing the language model for personality assessment.
 """
 
 from argparse import Namespace
-from typing import Optional
+from typing import Dict, List, Optional
 
 import pytorch_lightning as pl
 import torch
@@ -25,7 +25,7 @@ class CLMModel(pl.LightningModule):
         model_name: str,
         model_hparams: Namespace,
         use_peft: Optional[str] = None,
-        scale_peft: Optional[float] = 1.0,
+        scale_peft: float = 1.0,
         tokenizer: Optional[AutoTokenizer] = None,
     ):
         super().__init__()
@@ -35,7 +35,7 @@ class CLMModel(pl.LightningModule):
         self.use_peft = use_peft
         self.scale_peft = scale_peft
         self.tokenizer = tokenizer
-        self.metrics = {
+        self.metrics: Dict[str, List[float]] = {
             "train_loss": [],
             "val_loss": [],
             "test_loss": [],
@@ -49,8 +49,8 @@ class CLMModel(pl.LightningModule):
                 self.model, self.use_peft, self.scale_peft
             )
         self.loss_fn = nn.CrossEntropyLoss(ignore_index=-100, label_smoothing=1e-7)
-        self.validation_step_outputs = []
-        self.test_step_outputs = []
+        self.validation_step_outputs: List[Dict[str, torch.Tensor]] = []
+        self.test_step_outputs: List[Dict[str, torch.Tensor]] = []
 
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)

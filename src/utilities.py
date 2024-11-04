@@ -13,7 +13,7 @@ import random
 import warnings
 from argparse import Namespace
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import datasets
 import numpy as np
@@ -23,6 +23,7 @@ import torch
 import transformers
 from dotenv import load_dotenv
 from lightning.pytorch import seed_everything
+from pytorch_lightning import LightningModule
 from pytorch_lightning.callbacks import (
     EarlyStopping,
     ModelCheckpoint,
@@ -47,7 +48,7 @@ class ExperimentArguments:
 
     dataset: str = field(
         default="pandora",
-        metadata={"help": "| Dataset to use | ==> options: 'pandora', 'toxicity', ..."},
+        metadata={"help": "| Dataset to use | ==> options: 'pandora', 'jigsaw', ..."},
     )
     split: Optional[str] = field(
         default="base",
@@ -121,6 +122,8 @@ class ExperimentArguments:
         default=None,
         metadata={"help": "Number of CPU workers for DataLoader | optional"},
     )
+    accelerator: Optional[str] = None
+    devices: Optional[List[int]] = None
 
 
 class Utilities:
@@ -137,12 +140,12 @@ class Utilities:
         parser = HfArgumentParser(ExperimentArguments)
         args = parser.parse_args_into_dataclasses()[0]
         if args.use_peft is not None and args.scale_peft is None:
-            warnings.warn(
+            print(
                 "'scale_peft' is required when 'use_peft' is set. Setting to default value of 1.0."
             )
             args.scale_peft = 1.0
         if args.use_peft is None:
-            warnings.warn("'scale_peft' is ignored because 'use_peft' is not set.")
+            print("'scale_peft' is ignored because 'use_peft' is not set.")
         if args.num_workers is None:
             args.num_workers = Utilities.get_workers()
         return args
@@ -199,7 +202,7 @@ class Utilities:
         """
         Get the optimal number of workers for data loading.
         """
-        num_cpu_cores = os.cpu_count()
+        num_cpu_cores = os.cpu_count() if os.cpu_count() is not None else 1
         optimal_workers = min(16, max(1, num_cpu_cores // 2))
         return optimal_workers
 
@@ -208,22 +211,50 @@ class Utilities:
         """
         Identify available GPU devices.
         """
+        devices: Union[int, List[int], str]
         if torch.cuda.is_available():
-            devices = list(range(torch.cuda.device_count()))
-            # print(f"CUDA devices available: {devices}")
+            devices = [int(i) for i in os.environ.get('CUDA_VISIBLE_DEVICES', '').split(',') if i.strip().isdigit()]
+            if not devices:
+                devices = list(range(torch.cuda.device_count()))
+            print(f"CUDA devices available: {devices}")
         else:
             devices = []
             print("No CUDA devices are available.")
+        #     devices = list(range(torch.cuda.device_count()))
+        #     # print(f"CUDA devices available: {devices}")
+        # else:
+        #     devices = []
+        #     print("No CUDA devices are available.")
         return devices
 
     @staticmethod
     def generate_experiment_id(args: ExperimentArguments) -> str:
         """
-        Generate a unique identifier for the experiment.
+        Generate a unique identifier for the experiment based on selected arguments.
         """
-        args.model_name = args.model_name.lower()
-        args_str = json.dumps(vars(args), sort_keys=True)
-        experiment_id = hashlib.sha256(args_str.encode()).hexdigest()[:10]
+        dataset_abbr = args.dataset[0].upper() if args.dataset else 'd'
+        def abbreviate_split(split):
+            if split:
+                parts = split.split('-')
+                if len(parts) >= 3:
+                    abbr = ''.join([part[0] for part in parts[:2]]) + parts[2]
+                else:
+                    abbr = ''.join([part[0] for part in parts])
+                return abbr.lower()
+            else:
+                return 'split'
+        split_abbr = abbreviate_split(args.split)
+        model_abbr = args.model_name[0].lower() if args.model_name else 'm'
+        seed_str = f"S{args.seed}"
+        epochs_str = f"E{args.epochs}"
+        id_parts = [dataset_abbr, split_abbr, model_abbr, seed_str, epochs_str]
+        if args.use_peft is not None and args.scale_peft is not None:
+            scale_peft_str = f"Sp{args.scale_peft}"
+            id_parts.append(scale_peft_str)
+        if args.subset is not None:
+            subset_str = f"Ss{args.subset}"
+            id_parts.append(subset_str)
+        experiment_id = '-'.join(id_parts)
         return experiment_id
 
     @staticmethod
@@ -307,8 +338,10 @@ class Utilities:
             dict: lambda d: {k: Utilities.sanitize_results(v) for k, v in d.items()},
             list: lambda d: [Utilities.sanitize_results(v) for v in d],
             float: lambda d: (
-                "Infinity" if d > 0 else "-Infinity" if math.isinf(d) else "NaN"
-            ) if math.isnan(d) or math.isinf(d) else d,
+                ("Infinity" if d > 0 else "-Infinity" if math.isinf(d) else "NaN")
+                if math.isnan(d) or math.isinf(d)
+                else d
+            ),
         }
         return handlers.get(type(data), lambda d: d)(data)
 
@@ -343,7 +376,8 @@ class Utilities:
                     outputs = model(
                         input_ids=input_ids_batch, attention_mask=attention_mask_batch
                     )
-                    batch_size *= 2
+                    if outputs is not None:
+                        batch_size *= 2
                 except RuntimeError:
                     batch_size //= 2
                     break
@@ -374,9 +408,12 @@ class Utilities:
         tuner = Tuner(trainer)
         try:
             lr_finder = tuner.lr_find(model, train_loader)
-            best_lr = lr_finder.suggestion()
-            if best_lr is None:
-                raise ValueError("Learning rate finder failed to find a suggestion.")
+            if lr_finder is not None:
+                best_lr = lr_finder.suggestion()
+                if best_lr is None:
+                    raise ValueError(
+                        "Learning rate finder failed to find a suggestion."
+                    )
         except Exception as e:
             print(f"Learning rate finder failed with error: {e}")
             best_lr = initial_lr
@@ -440,7 +477,7 @@ class Utilities:
         return tb_logger, wandb_logger
 
     @staticmethod
-    def create_callbacks(output_dir: str, args: ExperimentArguments) -> tuple:
+    def create_callbacks(output_dir: str, args: ExperimentArguments) -> List[Any]:
         """
         Create model checkpoint and early stopping callbacks.
         """
@@ -467,12 +504,12 @@ class Utilities:
             annealing_epochs=1,
             annealing_strategy="cos",
         )
-        return (
+        return [
             best_model_checkpoint,
             epoch_checkpoint,
             early_stopping_callback,
             swa_callback,
-        )
+        ]
 
     @staticmethod
     def set_paths(args: ExperimentArguments) -> tuple:
@@ -505,7 +542,7 @@ class Utilities:
             print(f"Total trainable {lora_text} parameters: {lora_params}")
 
     @staticmethod
-    def refine_hparams(args: ExperimentArguments) -> dict:
+    def refine_hparams(args: ExperimentArguments) -> ExperimentArguments:
         """
         Refine hyperparameters before training.
         """
@@ -519,7 +556,7 @@ class Utilities:
             warmup_steps=1,
             accumulate_grad_batches=int(args.grad_steps),
         )
-        model = CLMModel(
+        model: LightningModule = CLMModel(
             args.model_name,
             model_hparams,
             args.use_peft,
@@ -531,7 +568,7 @@ class Utilities:
         return args
 
     @staticmethod
-    def housekeep() -> Tuple[ExperimentArguments, List, List, dict]:
+    def housekeep() -> Tuple[ExperimentArguments, List[Any], List[Any], Dict[str, Any]]:
         """
         Perform housekeeping tasks before training.
         """
