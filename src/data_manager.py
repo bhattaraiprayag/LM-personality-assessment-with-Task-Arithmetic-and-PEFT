@@ -6,7 +6,7 @@ Data management module for handling datasets and data loaders.
 
 import os
 import random
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -68,6 +68,18 @@ class DataManager(pl.LightningDataModule):
                     path += f"splits_balanced/{self.args.split}.csv"
             else:
                 path += base
+        elif self.args.dataset == "jigsaw":  # Jigsaw toxicity dataset
+            base = "jigsaw_combined_for_clm.csv"
+            path = f"{self.data_path}{self.args.dataset}/"
+            if self.args.split is not None:
+                if self.args.split == "base":
+                    path += base
+                else:
+                    print(
+                        f"Split: {self.args.split} is not supported for Jigsaw dataset. "
+                        f"Reverting to {base}."
+                    )
+                    path += base
         else:
             raise ValueError(f"Dataset '{self.args.dataset}' is not supported.")
         return path
@@ -81,6 +93,8 @@ class DataManager(pl.LightningDataModule):
         print(f"Original Dataset: {len(dataset)}")
         if self.args.dataset == "pandora":
             dataset = dataset.rename(columns={"body": "text"})
+        if self.args.dataset == "jigsaw":
+            dataset = dataset.rename(columns={"comment_text": "text"})
         train_val, test = train_test_split(
             dataset, test_size=0.05, random_state=self.args.seed
         )
@@ -114,7 +128,7 @@ class DataManager(pl.LightningDataModule):
         Tokenize the dataset using the tokenizer.
         """
 
-        def tokenize_seqs(examples: dict) -> dict:
+        def tokenize_seqs(examples: Dict[str, List[str]]) -> Dict[str, Any]:
             texts_with_special_tokens = [
                 self.tokenizer.bos_token + text + self.tokenizer.eos_token
                 for text in examples["text"]
@@ -158,7 +172,7 @@ class DataManager(pl.LightningDataModule):
         save_to_path = f"{self.data_path}{self.args.dataset}/tokenized/{filename}"
         os.makedirs(os.path.dirname(save_to_path), exist_ok=True)
         pq.write_table(
-            table, save_to_path, compression="zstd", use_dictionary=True, version="2.0"
+            table, save_to_path, compression="zstd", use_dictionary=True, version="2.6"
         )
 
     def load_tokenized_dataset(

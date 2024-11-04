@@ -22,7 +22,7 @@ class EvalManager:
         tokenizer,
         question: str,
         answers: list,
-        values: list = None,
+        values: Optional[list] = None,
         temps: Optional[List[float]] = None,
         variant=1,
         instr_tag_before="",
@@ -32,10 +32,14 @@ class EvalManager:
         Extracts token probabilities from the model given a question stem and possible
         answers that are based on the BFI-10 inventory.
         """
+        tokenizer.add_special_tokens({"bos_token": "<|startoftext|>"})
+        tokenizer.pad_token = tokenizer.eos_token
         if values is None:
             values = [1] * len(answers)
+        if temps is None:
+            temps = [1.0]
         input_texts = [
-            f"{tokenizer.pad_token}{instr_tag_before}{question}{instr_tag_after} {answer}"
+            f"{tokenizer.bos_token}{instr_tag_before}{question}{instr_tag_after} {answer}{tokenizer.eos_token}"
             for answer in answers
         ]
         input_ids, attention_mask = tokenizer(
@@ -106,7 +110,7 @@ class EvalManager:
 
         # Normalize the probabilities (for variant 1)
         if variant == 1:
-            log_probs = result_df["prob"].values
+            log_probs = np.array(result_df["prob"].values, dtype=np.float64)
             log_probs_shifted = log_probs - np.max(log_probs)
             probs = np.exp(log_probs_shifted)
             normalized_probs = probs / probs.sum()
