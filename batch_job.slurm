@@ -16,5 +16,5 @@ module del devel/cuda/11.8 jupyter/tensorflow/2023-10-10
 source /pfs/work7/workspace/scratch/ma_pbhattar-kdd_cup_2023/envs/nlpandllms/bin/activate
 cd /pfs/work7/workspace/scratch/ma_pbhattar-kdd_cup_2023/thesis/fresh_take/
 
-# python experiment_runner.py
+# python batch_experiments.py
 python start_experiment.py --dataset pandora --split agreeableness-bot-10 --output outputs/ --model_name GPT2 --seed 183 --epochs 3 --batch_size 16 --grad_steps 16 --use_peft lora --scale_peft 0.5
