@@ -1,10 +1,10 @@
 # src/eval_manager.py
-
 """
-Evaluation management module for assessing model personality traits.
+Module for evaluating language models by extracting and analyzing
+their responses to specific prompts.
 """
-
-from typing import List, Optional
+from typing import List
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -13,7 +13,8 @@ import torch
 
 class EvalManager:
     """
-    Manages the evaluation of model outputs against personality traits.
+    Class containing methods to evaluate a language model's responses
+    to personality assessment questions.
     """
 
     @staticmethod
@@ -29,8 +30,27 @@ class EvalManager:
         instr_tag_after="",
     ):
         """
-        Extracts token probabilities from the model given a question stem and possible
-        answers that are based on the BFI-10 inventory.
+        Generates model responses to a set of questions and computes
+        probabilities for each answer.
+
+        Args:
+            model: The language model to evaluate.
+            tokenizer: Tokenizer corresponding to the model.
+            question (str): The question prompt to evaluate.
+            answers (list): List of possible answers to the question.
+            values (Optional[list]): List of values associated with
+                each answer.
+            temps (Optional[List[float]]): List of temperatures for
+                sampling.
+            variant (int): Variant of the evaluation method to use.
+            instr_tag_before (str): Instruction tag to prepend before
+                the question.
+            instr_tag_after (str): Instruction tag to append after the
+                question.
+
+        Returns:
+            pd.DataFrame: DataFrame containing probabilities and other
+                details for each answer.
         """
         tokenizer.add_special_tokens({"bos_token": "<|startoftext|>"})
         tokenizer.pad_token = tokenizer.eos_token
@@ -45,7 +65,8 @@ class EvalManager:
         input_ids, attention_mask = tokenizer(
             input_texts, padding=True, return_tensors="pt"
         ).values()
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = next(model.parameters()).device
         input_ids = input_ids.to(device)
         attention_mask = attention_mask.to(device)
         attention_mask[:, 0] = 0

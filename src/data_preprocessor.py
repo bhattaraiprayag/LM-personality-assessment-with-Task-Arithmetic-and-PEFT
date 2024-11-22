@@ -1,13 +1,13 @@
-# data_preprocessor.py
-
+# src/data_preprocessor.py
 """
-Data preprocessing module for personality assessment.
+Module for preprocessing raw text data, cleaning comments,
+filtering authors, and creating balanced splits.
 """
-
 import os
 import re
 import time
-from typing import List, Optional
+from typing import List
+from typing import Optional
 
 import ftfy
 import numpy as np
@@ -17,7 +17,16 @@ from tqdm import tqdm
 
 class DataPreprocessor:
     """
-    A class to preprocess data for personality assessment.
+    Class for preprocessing data for personality trait analysis.
+
+    Attributes:
+        data_folder (str): Path to the data directory.
+        comments_file (str): Filename of the comments data.
+        author_profiles_file (str): Filename of the author profiles data.
+        splits_folder_balanced (Optional[str]): Path to save balanced splits.
+        ocean_traits (List[str]): List of OCEAN traits to consider.
+        mbti_traits (List[str]): List of MBTI traits to consider.
+        k_values (List[int]): List of percentile values for splitting.
     """
 
     CHARACTER_REPLACEMENTS = {
@@ -78,7 +87,7 @@ class DataPreprocessor:
 
     def load_data(self):
         """
-        Load comments and author profiles from CSV files.
+        Loads comments and author profiles from CSV files into DataFrames.
         """
         comments_path = os.path.join(self.data_folder, self.comments_file)
         author_profiles_path = os.path.join(self.data_folder, self.author_profiles_file)
@@ -89,7 +98,8 @@ class DataPreprocessor:
 
     def clean_comments(self):
         """
-        Clean the comments by removing unwanted characters and fixing encoding issues.
+        Cleans the comments by removing unwanted characters, HTML tags,
+        URLs, and fixing encoding issues.
         """
         print("Cleaning comments...")
         self.comments = self.comments.dropna(subset=["body"])
@@ -100,7 +110,14 @@ class DataPreprocessor:
     @staticmethod
     def clean_comment(comment):
         """
-        Clean a single comment by removing HTML tags, URLs, and fixing character encodings.
+        Cleans a single comment by removing HTML tags, URLs, and fixing
+        encoding issues.
+
+        Args:
+            comment (str): The comment text to clean.
+
+        Returns:
+            str: The cleaned comment text.
         """
         comment = re.sub(r"<[^>]+>", "", comment)
         comment = re.sub(r"http[s]?://\S+", "", comment)
@@ -112,7 +129,8 @@ class DataPreprocessor:
 
     def filter_authors_with_profiles(self):
         """
-        Filter comments to include only those from authors with available profiles.
+        Filters comments to include only those from authors who have
+        profile information.
         """
         print("Filtering authors with profiles...")
         authors_in_comments = set(self.comments["author"].unique())
@@ -129,7 +147,8 @@ class DataPreprocessor:
 
     def filter_authors_with_complete_traits(self):
         """
-        Further filter authors to include only those with complete OCEAN and MBTI traits.
+        Filters comments to include only those from authors with complete
+        OCEAN and MBTI trait data.
         """
         print("Filtering authors with complete OCEAN and MBTI traits...")
         ocean_complete_authors = set(
@@ -166,7 +185,18 @@ class DataPreprocessor:
 
     def get_top_bottom_percentile_comments(self, trait, percentile, comments, top=True):
         """
-        Retrieve top or bottom percentile of comments based on a specific trait.
+        Retrieves comments from authors in the top or bottom percentile
+        for a given trait.
+
+        Args:
+            trait (str): The trait to filter by.
+            percentile (int): The percentile cutoff (e.g., 5 for top 5%).
+            comments (pd.DataFrame): DataFrame containing comments.
+            top (bool): Whether to select top percentile (True) or bottom
+                percentile (False).
+
+        Returns:
+            pd.DataFrame: Filtered comments DataFrame.
         """
         sorted_authors = self.author_profiles[
             ~self.author_profiles[trait].isnull()
@@ -183,7 +213,8 @@ class DataPreprocessor:
 
     def perform_splitting(self):
         """
-        Split the data into balanced top and bottom percentile datasets and save them.
+        Performs splitting of data into balanced datasets based on percentile
+        values for each trait.
         """
         print("Performing splitting and saving balanced datasets...")
         if not os.path.exists(self.splits_folder_balanced):
@@ -240,7 +271,7 @@ class DataPreprocessor:
 
     def save_comments(self):
         """
-        Save the filtered comments to CSV files.
+        Saves filtered comments DataFrames to CSV files.
         """
         print("Saving filtered comments...")
         ocean_comments_path = os.path.join(
@@ -263,7 +294,8 @@ class DataPreprocessor:
 
     def run(self):
         """
-        Execute the full data preprocessing pipeline.
+        Executes the full preprocessing pipeline: loading data, cleaning
+        comments, filtering authors, saving comments, and splitting data.
         """
         self.load_data()
         self.clean_comments()

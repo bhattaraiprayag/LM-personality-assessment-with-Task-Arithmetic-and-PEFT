@@ -80,6 +80,7 @@ cython_debug/
 
 # Experiment / training outputs
 outputs/
+old_outputs/
 logs/
 evaluation/results/
 wandb/
@@ -96,5 +97,7 @@ results/
 lora_weights/
 old_code_src/
 junk/
+necessary_scripts/
 notebooks/
 src/viz_guide.md
+qodana.yaml

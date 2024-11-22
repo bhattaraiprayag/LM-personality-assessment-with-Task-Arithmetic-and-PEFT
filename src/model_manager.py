@@ -1,40 +1,47 @@
 # src/model_manager.py
-
 """
-Module managing the language model for personality assessment.
+Module defining the CLMModel class for language model training
+using PyTorch Lightning.
 """
-
 from argparse import Namespace
-from typing import Dict, List, Optional
+from typing import Dict
+from typing import List
 
 import pytorch_lightning as pl
 import torch
 from torch import nn
-from transformers import AdamW, AutoModelForCausalLM, AutoTokenizer
-
-from src.peft_manager import PEFTManager
+from transformers import AdamW
+from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 
 class CLMModel(pl.LightningModule):
     """
-    Causal Language Model for personality assessment using PyTorch Lightning.
+    PyTorch Lightning module for training causal language models.
+
+    Attributes:
+        model: The pre-trained language model.
+        model_hparams (Namespace): Hyperparameters for training.
+        loss_fn (nn.CrossEntropyLoss): Loss function for training.
+        metrics (Dict[str, List[float]]): Dictionary to store training metrics.
     """
 
     def __init__(
         self,
-        model_name: str,
+        model,
         model_hparams: Namespace,
-        use_peft: Optional[str] = None,
-        scale_peft: float = 1.0,
-        tokenizer: Optional[AutoTokenizer] = None,
     ):
+        """
+        Initializes the CLMModel with the given model and hyperparameters.
+
+        Args:
+            model: The pre-trained language model to train.
+            model_hparams (Namespace): Hyperparameters for the model.
+        """
         super().__init__()
-        self.model_name = model_name
+        self.model = model
         self.model_hparams = model_hparams
         self.save_hyperparameters(self.model_hparams)
-        self.use_peft = use_peft
-        self.scale_peft = scale_peft
-        self.tokenizer = tokenizer
+        self.loss_fn = nn.CrossEntropyLoss(ignore_index=-100, label_smoothing=1e-7)
         self.metrics: Dict[str, List[float]] = {
             "train_loss": [],
             "val_loss": [],
@@ -42,28 +49,43 @@ class CLMModel(pl.LightningModule):
             "val_perplexity": [],
             "test_perplexity": [],
         }
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
-        self.model.resize_token_embeddings(len(self.tokenizer))
-        if self.use_peft:
-            self.model = PEFTManager.apply_peft(
-                self.model, self.use_peft, self.scale_peft
-            )
-        self.loss_fn = nn.CrossEntropyLoss(ignore_index=-100, label_smoothing=1e-7)
         self.validation_step_outputs: List[Dict[str, torch.Tensor]] = []
         self.test_step_outputs: List[Dict[str, torch.Tensor]] = []
 
     def forward(self, *args, **kwargs):
+        """
+        Forward pass of the model.
+
+        Returns:
+            Model output from the forward pass.
+        """
         return self.model(*args, **kwargs)
 
-    def compute_loss(self, outputs: dict, batch: dict) -> torch.Tensor:
+    def compute_loss(
+        self, outputs: CausalLMOutputWithCrossAttentions, batch: Dict[str, torch.Tensor]
+    ) -> torch.Tensor:
         """
-        Compute the loss from model outputs.
+        Computes the loss between model outputs and targets.
+
+        Args:
+            outputs (CausalLMOutputWithCrossAttentions): Model outputs.
+            batch (Dict[str, torch.Tensor]): Batch of input data.
+
+        Returns:
+            torch.Tensor: Computed loss.
         """
         return outputs.loss
 
     def training_step(self, batch: dict, _batch_idx: int):
         """
-        Compute the training loss.
+        Performs a single training step.
+
+        Args:
+            batch (dict): Batch of input data.
+            _batch_idx (int): Batch index (unused).
+
+        Returns:
+            Dict[str, torch.Tensor]: Dictionary containing the loss.
         """
         outputs = self(**batch)
         loss = outputs.loss
@@ -79,7 +101,14 @@ class CLMModel(pl.LightningModule):
 
     def validation_step(self, batch: dict, _batch_idx: int):
         """
-        Compute the validation loss.
+        Performs a single validation step.
+
+        Args:
+            batch (dict): Batch of input data.
+            _batch_idx (int): Batch index (unused).
+
+        Returns:
+            Dict[str, torch.Tensor]: Dictionary containing the loss.
         """
         outputs = self(**batch)
         loss = outputs.loss
@@ -96,7 +125,14 @@ class CLMModel(pl.LightningModule):
 
     def test_step(self, batch: dict, _batch_idx: int):
         """
-        Compute the test loss.
+        Performs a single test step.
+
+        Args:
+            batch (dict): Batch of input data.
+            _batch_idx (int): Batch index (unused).
+
+        Returns:
+            Dict[str, torch.Tensor]: Dictionary containing the loss.
         """
         outputs = self(**batch)
         loss = outputs.loss
@@ -113,7 +149,8 @@ class CLMModel(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         """
-        Compute and log validation metrics at the end of each epoch.
+        Calculates and logs average validation loss and perplexity at the
+        end of each validation epoch.
         """
         avg_loss = torch.stack([x["loss"] for x in self.validation_step_outputs]).mean()
         perplexity = torch.exp(avg_loss)
@@ -125,7 +162,8 @@ class CLMModel(pl.LightningModule):
 
     def on_test_epoch_end(self):
         """
-        Compute and log test metrics at the end of testing.
+        Calculates and logs average test loss and perplexity at the
+        end of testing.
         """
         avg_loss = torch.stack([x["loss"] for x in self.test_step_outputs]).mean()
         perplexity = torch.exp(avg_loss)
@@ -137,13 +175,19 @@ class CLMModel(pl.LightningModule):
 
     def get_metrics(self):
         """
-        Retrieve the collected metrics.
+        Retrieves the stored training metrics.
+
+        Returns:
+            Dict[str, List[float]]: Dictionary of metrics.
         """
         return self.metrics
 
     def configure_optimizers(self):
         """
-        Configure the optimizer for training.
+        Configures the optimizer for training.
+
+        Returns:
+            Optimizer: The optimizer to use.
         """
         optimizer = AdamW(self.model.parameters(), lr=self.model_hparams.lr)
         return optimizer

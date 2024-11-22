@@ -1,10 +1,10 @@
-# src/utilities.py
+# src/utils/main.py
 
 """
-Utility functions and classes for the personality assessment project.
+Main utility module containing functions for argument parsing, environment setup, and
+housekeeping tasks.
 """
 
-import hashlib
 import json
 import logging
 import math
@@ -12,8 +12,7 @@ import os
 import random
 import warnings
 from argparse import Namespace
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import datasets
 import numpy as np
@@ -32,120 +31,33 @@ from pytorch_lightning.callbacks import (
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.tuner import Tuner
 from pytorch_lightning.utilities import rank_zero_only
-from transformers import HfArgumentParser
+from transformers import AutoModelForCausalLM, HfArgumentParser
 from transformers import set_seed as hf_set_seed
 
 from src.data_manager import DataManager
 from src.model_manager import CLMModel
-
-
-@dataclass
-class ExperimentArguments:
-    """
-    Arguments needed to run task-arithmetic experiments with PEFT-based LLM fine-tuning for
-    personality assessment.
-    """
-
-    dataset: str = field(
-        default="pandora",
-        metadata={"help": "| Dataset to use | ==> options: 'pandora', 'jigsaw', ..."},
-    )
-    split: Optional[str] = field(
-        default="base",
-        metadata={
-            "help": (
-                "| Dataset split to use. Based on top/bottom k-percentile authors comments "
-                "for that trait label | ==> options: 'base', 'conscientiousness-top-5', "
-                "'openness-bot-5', ..."
-            )
-        },
-    )
-    subset: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": "| Number of samples to subset (to ease prototyping) | ==> optional"
-        },
-    )
-    output: str = field(
-        default="outputs/",
-        metadata={"help": "| Directory to experiment outputs | ==> required"},
-    )
-    model_name: str = field(
-        default="gpt2",
-        metadata={
-            "help": "| Pre-trained model to use | ==> options: 'gpt2', 'gpt3', ..."
-        },
-    )
-    seed: int = field(
-        default=183, metadata={"help": "| Seed for reproducibility | ==> required"}
-    )
-    epochs: int = field(
-        default=1, metadata={"help": "| Number of epochs for training | ==> required"}
-    )
-    batch_size: int = field(
-        default=16, metadata={"help": "| Batch size for training | ==> required"}
-    )
-    lr: float = field(
-        default=1e-5, metadata={"help": "| Learning rate for training | ==> required"}
-    )
-    grad_steps: int = field(
-        default=4,
-        metadata={
-            "help": "| Number of gradient steps to accumulate before backprop | ==> required"
-        },
-    )
-    use_peft: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "| PEFT method to use | ==> options: 'lora', 'prompt-tuning', ..."
-        },
-    )
-    scale_peft: Optional[float] = field(
-        default=None,
-        metadata={
-            "help": (
-                "| Scaling factor for PEFT weights. If set to 1, PEFT module's weights are "
-                "not being scaled. | ==> optional"
-            )
-        },
-    )
-    warmup_ratio: float = field(
-        default=0.03,
-        metadata={
-            "help": (
-                "Ratio of warmup steps for the scheduler. Acceptable range: from 0.03 to "
-                "0.1 | optional"
-            )
-        },
-    )
-    num_workers: Optional[int] = field(
-        default=None,
-        metadata={"help": "Number of CPU workers for DataLoader | optional"},
-    )
-    accelerator: Optional[str] = None
-    devices: Optional[List[int]] = None
+from src.utils.args_parser import ExperimentArguments
+from src.utils.helper import print_output
 
 
 class Utilities:
     """
-    A collection of static utility methods for experiment setup and management.
+    Class providing static utility methods for setting up experiments, parsing arguments,
+    and managing devices.
     """
 
     @staticmethod
     def parse_arguments() -> ExperimentArguments:
         """
-        Parse command-line arguments for task-arithmetic experiments with PEFT-based LLM fine-tuning for
-        personality assessment.
+        Parses command-line arguments using HfArgumentParser.
+
+        Returns:
+            ExperimentArguments: Parsed arguments.
         """
         parser = HfArgumentParser(ExperimentArguments)
         args = parser.parse_args_into_dataclasses()[0]
-        if args.use_peft is not None and args.scale_peft is None:
-            print(
-                "'scale_peft' is required when 'use_peft' is set. Setting to default value of 1.0."
-            )
-            args.scale_peft = 1.0
         if args.use_peft is None:
-            print("'scale_peft' is ignored because 'use_peft' is not set.")
+            print_output("'scale_peft' is ignored because 'use_peft' is not set.")
         if args.num_workers is None:
             args.num_workers = Utilities.get_workers()
         return args
@@ -153,11 +65,14 @@ class Utilities:
     @staticmethod
     def set_seed(seed: int) -> None:
         """
-        Set seed for reproducibility.
+        Sets the seed for reproducibility across runs.
+
+        Args:
+            seed (int): Seed value.
         """
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = (
-            ":4096:8"  # VITAL: This has to come before torch.backends.cudnn.deterministic = True
-        )
+            ":4096:8"
+        )  # VITAL: This has to come before torch.backends.cudnn.deterministic = True
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -173,9 +88,9 @@ class Utilities:
         seed_everything(seed)
 
     @staticmethod
-    def suppress_warnings():
+    def suppress_warnings() -> None:
         """
-        Suppress warnings from various libraries.
+        Suppresses warnings and sets logging verbosity to error.
         """
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
         warnings.filterwarnings("ignore")
@@ -200,70 +115,94 @@ class Utilities:
     @staticmethod
     def get_workers() -> int:
         """
-        Get the optimal number of workers for data loading.
+        Sets the optimal number of workers for DataLoader.
+
+        Returns:
+            int: Number of workers.        
         """
-        num_cpu_cores = os.cpu_count() if os.cpu_count() is not None else 1
+        num_cpu_cores = os.cpu_count() or 1
         optimal_workers = min(16, max(1, num_cpu_cores // 2))
         return optimal_workers
 
     @staticmethod
-    def identify_devices() -> List[int]:
+    def identify_gpu_devices(args: ExperimentArguments) -> List[int]:
         """
-        Identify available GPU devices.
+        Identifies available CUDA devices.
+        
+        Returns:
+            Union[int, List[int], str]: List of device IDs.
         """
         devices: Union[int, List[int], str]
+        devices_arg = args.devices
         if torch.cuda.is_available():
-            devices = [int(i) for i in os.environ.get('CUDA_VISIBLE_DEVICES', '').split(',') if i.strip().isdigit()]
-            if not devices:
+            if devices_arg is not None:
+                devices_str_list = [
+                    d.strip() for d in devices_arg.split(",") if d.strip().isdigit()
+                ]
+                if len(devices_str_list) == 1:
+                    devices = [int(devices_str_list[0])]
+                elif devices_str_list:
+                    devices = [int(d) for d in devices_str_list]
+                else:
+                    devices = list(range(torch.cuda.device_count()))
+            else:
                 devices = list(range(torch.cuda.device_count()))
-            print(f"CUDA devices available: {devices}")
+            print_output(f"CUDA devices available: {devices}")
         else:
             devices = []
-            print("No CUDA devices are available.")
-        #     devices = list(range(torch.cuda.device_count()))
-        #     # print(f"CUDA devices available: {devices}")
-        # else:
-        #     devices = []
-        #     print("No CUDA devices are available.")
+            print_output("No CUDA devices are available.")
         return devices
 
     @staticmethod
     def generate_experiment_id(args: ExperimentArguments) -> str:
         """
-        Generate a unique identifier for the experiment based on selected arguments.
+        Generates a unique experiment ID based on the provided arguments.
+
+        Args:
+            args (ExperimentArguments): Parsed arguments.
+
+        Returns:
+            str: Experiment ID.
         """
-        dataset_abbr = args.dataset[0].upper() if args.dataset else 'd'
+        dataset_abbr = args.dataset[0].upper() if args.dataset else "d"
+
         def abbreviate_split(split):
             if split:
-                parts = split.split('-')
+                parts = split.split("-")
                 if len(parts) >= 3:
-                    abbr = ''.join([part[0] for part in parts[:2]]) + parts[2]
+                    abbr = "".join([part[0] for part in parts[:2]]) + parts[2]
                 else:
-                    abbr = ''.join([part[0] for part in parts])
+                    abbr = "".join([part[0] for part in parts])
                 return abbr.lower()
             else:
-                return 'split'
+                return "split"
+
         split_abbr = abbreviate_split(args.split)
-        model_abbr = args.model_name[0].lower() if args.model_name else 'm'
-        seed_str = f"S{args.seed}"
-        epochs_str = f"E{args.epochs}"
+        model_abbr = args.model_name.lower() if args.model_name else "m"
+        seed_str = f"Se-{args.seed}"
+        epochs_str = f"Ep-{args.epochs}"
         id_parts = [dataset_abbr, split_abbr, model_abbr, seed_str, epochs_str]
-        if args.use_peft is not None and args.scale_peft is not None:
-            scale_peft_str = f"Sp{args.scale_peft}"
-            id_parts.append(scale_peft_str)
+
+        if args.use_peft is not None:
+            use_peft_str = f"Pe-{args.use_peft}"
+            id_parts.append(use_peft_str)
         if args.subset is not None:
-            subset_str = f"Ss{args.subset}"
+            subset_str = f"Ss-{args.subset}"
             id_parts.append(subset_str)
-        experiment_id = '-'.join(id_parts)
+        experiment_id = "-".join(id_parts)
         return experiment_id
 
     @staticmethod
     @rank_zero_only
-    def save_experiment_metadata(
-        args: ExperimentArguments, experiment_id: str, output_dir: str
-    ) -> None:
+    def save_experiment_metadata(args: ExperimentArguments, experiment_id: str,
+                                 output_dir: str) -> None:
         """
-        Save the experiment metadata to a JSON file.
+        Saves experiment metadata to a JSON file.
+
+        Args:
+            args (ExperimentArguments): Parsed arguments.
+            experiment_id (str): Unique experiment ID.
+            output_dir (str): Directory to save metadata.
         """
         metadata_path = os.path.join(output_dir, "experiment_metadata.json")
         if os.path.exists(metadata_path):
@@ -280,11 +219,18 @@ class Utilities:
 
     @staticmethod
     @rank_zero_only
-    def update_experiment_metadata(
-        output_dir: str, experiment_id: str, results: dict
-    ) -> None:
+    def update_experiment_metadata(output_dir: str, experiment_id: str,
+                                   results: dict) -> None:
         """
-        Update the experiment metadata with results.
+        Updates experiment metadata with results.
+
+        Args:
+            output_dir (str): Directory containing the metadata file.
+            experiment_id (str): Unique experiment ID.
+            results (dict): Experiment results
+
+        Raises:
+            FileNotFoundError: If metadata file is not found.
         """
         metadata_path = os.path.join(output_dir, "experiment_metadata.json")
         if os.path.exists(metadata_path):
@@ -305,14 +251,21 @@ class Utilities:
 
     @staticmethod
     @rank_zero_only
-    def save_experiment_results(
-        output_dir: str, experiment_id: str, results: dict
-    ) -> None:
+    def save_experiment_results(output_dir: str, experiment_id: str,
+                                results: dict) -> None:
         """
-        Save the experiment results to a JSON file.
+        Saves experiment results to a JSON file.
+
+        Args:
+            output_dir (str): Directory to save results.
+            experiment_id (str): Unique experiment ID.
+            results (dict): Experiment results.
+
+        Raises:
+            JSONDecodeError: If the results file is corrupted.
         """
         results = Utilities.sanitize_results(results)
-        results_path = os.path.join(output_dir, "results.json")
+        results_path = os.path.join(output_dir, experiment_id, "results.json")
         if os.path.exists(results_path):
             with open(results_path, "r", encoding="utf-8") as f:
                 try:
@@ -330,9 +283,15 @@ class Utilities:
         print(f"Experiment results saved to {results_path}")
 
     @staticmethod
-    def sanitize_results(data):
+    def sanitize_results(data) -> Any:
         """
-        Sanitize the results to ensure JSON compatibility.
+        Sanitizes results for JSON serialization.
+
+        Args:
+            data: Data to sanitize.
+
+        Returns:
+            Any: Sanitized data.
         """
         handlers = {
             dict: lambda d: {k: Utilities.sanitize_results(v) for k, v in d.items()},
@@ -346,14 +305,19 @@ class Utilities:
         return handlers.get(type(data), lambda d: d)(data)
 
     @staticmethod
-    def find_max_batch_size(
-        model: torch.nn.Module,
-        tokenizer,
-        device: torch.device,
-        args: ExperimentArguments,
-    ) -> int:
+    def find_max_batch_size(model: torch.nn.Module, tokenizer, device: torch.device,
+                            args: ExperimentArguments) -> int:
         """
-        Find the maximum batch size that can fit on the GPU.
+        Finds the maximum batch size that can be used for training.
+
+        Args:
+            model (torch.nn.Module): Model to train.
+            tokenizer: Tokenizer for the model.
+            device (torch.device): Device to use.
+            args (ExperimentArguments): Parsed arguments.
+        
+        Returns:
+            int: Maximum batch size.
         """
         model.to(device)
         model.eval()
@@ -381,17 +345,22 @@ class Utilities:
                 except RuntimeError:
                     batch_size //= 2
                     break
-        print(f"Maximum batch size: {batch_size}")
+        print_output(f"Maximum batch size: {batch_size}")
         return batch_size
 
     @staticmethod
-    def find_optimal_lr(
-        model: torch.nn.Module,
-        train_loader: torch.utils.data.DataLoader,
-        args: ExperimentArguments,
-    ) -> float:
+    def find_optimal_lr(model: LightningModule, train_loader: torch.utils.data.DataLoader,
+                        args: ExperimentArguments) -> float:
         """
-        Find the optimal learning rate using the learning rate finder.
+        Finds the optimal learning rate using the Learning Rate Finder.
+
+        Args:
+            model (LightningModule): Model to train.
+            train_loader (torch.utils.data.DataLoader): Training DataLoader.
+            args (ExperimentArguments): Parsed arguments.
+
+        Returns:
+            float: Optimal learning rate.
         """
         initial_lr = args.lr
         output_dir_for_tuner = os.path.join(args.output, "lr_finder")
@@ -399,31 +368,34 @@ class Utilities:
             default_root_dir=output_dir_for_tuner,
             max_epochs=1,
             accumulate_grad_batches=int(args.grad_steps),
-            accelerator=args.accelerator,
-            devices=args.devices,
+            accelerator=args.accelerator if args.accelerator is not None else "auto",
+            devices=args.devices if args.devices is not None else 1,
             precision=16,
             gradient_clip_val=0.5,
-            # deterministic=True                # Doesn't work with Tuner for some reason
+            # deterministic=True        # Doesn't work with Tuner for some reason
         )
         tuner = Tuner(trainer)
         try:
-            lr_finder = tuner.lr_find(model, train_loader)
+            lr_finder = tuner.lr_find(model, train_dataloaders=train_loader)
             if lr_finder is not None:
-                best_lr = lr_finder.suggestion()
-                if best_lr is None:
-                    raise ValueError(
-                        "Learning rate finder failed to find a suggestion."
-                    )
+                suggestion = lr_finder.suggestion()
+                if suggestion is not None:
+                    best_lr = suggestion
+                else:
+                    best_lr = initial_lr
+            else:
+                best_lr = initial_lr
         except Exception as e:
-            print(f"Learning rate finder failed with error: {e}")
+            print_output(f"Learning rate finder failed with error: {e}")
             best_lr = initial_lr
-        print(f"Optimal LR: {best_lr}")
+        print_output(f"Optimal LR: {best_lr}")
         return best_lr
 
     @staticmethod
     def clear_cuda_memory() -> None:
         """
-        Clear CUDA memory and reset peak memory stats.
+        Clears CUDA memory and resets peak memory stats.
+        !!! Does not work; need to fix !!!
         """
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
@@ -432,7 +404,10 @@ class Utilities:
     @staticmethod
     def load_env(dotenv_path: str) -> None:
         """
-        Load environment variables from a .env file.
+        Loads environment variables from a .env file.
+
+        Args:
+            dotenv_path (str): Path to the .env file.
         """
         if os.path.exists(dotenv_path):
             load_dotenv(dotenv_path)
@@ -447,11 +422,18 @@ class Utilities:
             )
 
     @staticmethod
-    def create_loggers(
-        output_dir: str, experiment_id: str, args: ExperimentArguments
-    ) -> tuple:
+    def create_loggers(output_dir: str, experiment_id: str,
+                       args: ExperimentArguments) -> tuple:
         """
-        Create logging objects for TensorBoard and Weights & Biases.
+        Creates TensorBoard and WandB loggers for experiment tracking.
+
+        Args:
+            output_dir (str): Directory to save logs.
+            experiment_id (str): Unique experiment ID.
+            args (ExperimentArguments): Parsed arguments.
+
+        Returns:
+            tuple: Tuple containing the TensorBoard and WandB loggers.
         """
         tb_name = "tb_logs"
         wandb_project = "Master's Thesis"
@@ -479,7 +461,14 @@ class Utilities:
     @staticmethod
     def create_callbacks(output_dir: str, args: ExperimentArguments) -> List[Any]:
         """
-        Create model checkpoint and early stopping callbacks.
+        Creates callbacks for model training.
+
+        Args:
+            output_dir (str): Directory to save logs.
+            args (ExperimentArguments): Parsed arguments.
+
+        Returns:
+            List[Any]: List of callbacks.
         """
         best_model_checkpoint = ModelCheckpoint(
             dirpath=output_dir,
@@ -487,13 +476,14 @@ class Utilities:
             monitor="val_loss",
             mode="min",
             save_top_k=1,
-            save_weights_only=True,
-        )
-        epoch_checkpoint = ModelCheckpoint(
-            dirpath=output_dir,
-            filename="epoch-{epoch:02d}",
-            save_top_k=-1,
             save_weights_only=False,
+            save_last=False,
+        )
+        last_checkpoint = ModelCheckpoint(
+            dirpath=output_dir,
+            save_weights_only=False,
+            save_last=True,
+            save_top_k=0,
         )
         early_stopping_callback = EarlyStopping(
             monitor="val_loss", patience=3, mode="min"
@@ -506,7 +496,7 @@ class Utilities:
         )
         return [
             best_model_checkpoint,
-            epoch_checkpoint,
+            last_checkpoint,
             early_stopping_callback,
             swa_callback,
         ]
@@ -514,82 +504,101 @@ class Utilities:
     @staticmethod
     def set_paths(args: ExperimentArguments) -> tuple:
         """
-        Set the paths for the experiment.
+        Sets the output directory and experiment ID for the experiment.
+
+        Args:
+            args (ExperimentArguments): Parsed arguments.
+
+        Returns:
+            tuple: Tuple containing the experiment output directory,
+                experiment ID, and updated arguments.
         """
-        output_dir = args.output
+        base_output_dir = args.output
         experiment_id = Utilities.generate_experiment_id(args)
-        print(f"Experiment ID: {experiment_id}")
-        os.makedirs(output_dir, exist_ok=True)
-        Utilities.save_experiment_metadata(args, experiment_id, output_dir)
-        output_dir_exp = os.path.join(output_dir, experiment_id)
-        os.makedirs(output_dir_exp, exist_ok=True)
-        args.base_output_dir = output_dir
-        args.output = output_dir_exp
-        return output_dir_exp, experiment_id, args
+        print_output(f"Experiment ID: {experiment_id}")
+        os.makedirs(base_output_dir, exist_ok=True)
+        exp_out_dir = os.path.join(base_output_dir, experiment_id)
+        os.makedirs(exp_out_dir, exist_ok=True)
+        args.exp_out_dir = exp_out_dir
+        args.exp_id = experiment_id
+        Utilities.save_experiment_metadata(args, experiment_id, base_output_dir)
+        return exp_out_dir, experiment_id, args
 
     @staticmethod
     def print_trainable_params(model: torch.nn.Module) -> None:
         """
-        Print the number of trainable parameters.
+        Prints the total number of trainable parameters in the model.
+
+        Args:
+            model (torch.nn.Module): Model to evaluate.
         """
         total_trainable_params = sum(
             p.numel() for p in model.parameters() if p.requires_grad
         )
-        print(f"Total trainable parameters: {total_trainable_params}")
+        print_output(f"Total trainable parameters: {total_trainable_params}")
         lora_text = "lora" if "lora" in model.state_dict() else "LoRA"
         if lora_text in model.state_dict():
             lora_params = sum(p.numel() for p in model.state_dict()[lora_text].values())
-            print(f"Total trainable {lora_text} parameters: {lora_params}")
+            print_output(f"Total trainable {lora_text} parameters: {lora_params}")
 
     @staticmethod
     def refine_hparams(args: ExperimentArguments) -> ExperimentArguments:
         """
-        Refine hyperparameters before training.
+        Refines the learning rate before training.
+
+        Args:
+            args (ExperimentArguments): Parsed arguments.
+
+        Returns:
+            ExperimentArguments: Updated arguments.
         """
         check_data_manager = DataManager(args)
         check_data_manager.setup()
         tokenizer = check_data_manager.tokenizer
         check_train_loader = check_data_manager.train_dataloader()
+        pretrained_model = AutoModelForCausalLM.from_pretrained(args.model_name)
+        pretrained_model.resize_token_embeddings(len(tokenizer))
         model_hparams = Namespace(
             lr=args.lr,
             epochs=args.epochs,
             warmup_steps=1,
             accumulate_grad_batches=int(args.grad_steps),
         )
-        model: LightningModule = CLMModel(
-            args.model_name,
+        clm_model: LightningModule = CLMModel(
+            pretrained_model,
             model_hparams,
-            args.use_peft,
-            args.scale_peft,
-            tokenizer,
         )
-        optimal_lr = Utilities.find_optimal_lr(model, check_train_loader, args)
+        optimal_lr = Utilities.find_optimal_lr(clm_model, check_train_loader, args)
         args.optimal_lr = optimal_lr
         return args
 
     @staticmethod
     def housekeep() -> Tuple[ExperimentArguments, List[Any], List[Any], Dict[str, Any]]:
         """
-        Perform housekeeping tasks before training.
+        Performs housekeeping tasks to set up the experiment.
+
+        Returns:
+            Tuple[ExperimentArguments, List[Any], List[Any], Dict[str, Any]]:
+                Tuple containing arguments, loggers, callbacks, and device configuration.
         """
         args = Utilities.parse_arguments()
         dotenv_path = os.path.expanduser("./.env")
         Utilities.load_env(dotenv_path)
         Utilities.set_seed(args.seed)
-        devices = Utilities.identify_devices()
+        devices = Utilities.identify_gpu_devices(args)
         if not devices:
             multi_gpu = False
             devices = 1
             args.devices = 1
             accelerator = "cpu"
             args.accelerator = accelerator
-        elif len(devices) == 1:
+        elif isinstance(devices, list) and len(devices) == 1:
             multi_gpu = False
             accelerator = "gpu"
             args.accelerator = accelerator
             args.devices = devices
         else:
-            multi_gpu = len(devices) > 1
+            multi_gpu = isinstance(devices, list) and len(devices) > 1
             accelerator = "auto"
             args.accelerator = accelerator
             args.devices = devices
@@ -600,12 +609,12 @@ class Utilities:
             "current_device": ava_device,
             "num_workers": args.num_workers,
         }
+        print_output(f"Device configuration: {device_config}")
         args = Utilities.refine_hparams(args)
         output_dir_exp, exp_id, args = Utilities.set_paths(args)
-        args.exp_id = exp_id
         tb_logger, wandb_logger = Utilities.create_loggers(output_dir_exp, exp_id, args)
         callbacks = Utilities.create_callbacks(output_dir_exp, args)
         loggers = [tb_logger, wandb_logger]
         callbacks = list(callbacks)
-        Utilities.clear_cuda_memory()
+        # Utilities.clear_cuda_memory()        # CAUTION: Does not work; need to fix.
         return args, loggers, callbacks, device_config

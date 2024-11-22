@@ -1,26 +1,30 @@
 # start_experiment.py
-
 """
-Module to initiate and run the personality assessment experiment.
+Script to initialize and run an experiment, including data preparation, model training, and evaluation.
 """
-
 import math
 from argparse import Namespace
 
 import pytorch_lightning as pl
 import torch
+from peft.helpers import rescale_adapter_scale
+from transformers import AutoModelForCausalLM
 
 from src.data_manager import DataManager
 from src.eval_manager import EvalManager
 from src.model_manager import CLMModel
-from src.utilities import Utilities
+from src.peft_manager import PEFTManager
+from src.utils.main import Utilities
 
 Utilities.suppress_warnings()
 
 
 def setup_experiment():
     """
-    Perform housekeeping tasks and set up the experiment environment.
+    Sets up the experiment by parsing arguments and preparing the environment.
+
+    Returns:
+        Tuple containing arguments, loggers, callbacks, and device configuration.
     """
     args, loggers, callbacks, device_config = Utilities.housekeep()
     return args, loggers, callbacks, device_config
@@ -28,7 +32,13 @@ def setup_experiment():
 
 def prepare_data(args):
     """
-    Set up the data manager.
+    Prepares the data using the DataManager.
+
+    Args:
+        args: Experiment arguments.
+
+    Returns:
+        DataManager: The initialized data manager with prepared data.
     """
     data_manager = DataManager(args)
     data_manager.setup(args)
@@ -37,42 +47,85 @@ def prepare_data(args):
 
 def initialize_model(args, data_manager, warmup_steps):
     """
-    Initialize the language model.
+    Initializes the model and wraps it with PEFT if specified.
+
+    Args:
+        args: Experiment arguments.
+        data_manager: DataManager with tokenizer.
+        warmup_steps: Number of warmup steps for the scheduler.
+
+    Returns:
+        CLMModel: The initialized language model.
     """
-    tokenizer = data_manager.tokenizer
+    pretrained_model = AutoModelForCausalLM.from_pretrained(args.model_name)
+    pretrained_model.resize_token_embeddings(len(data_manager.tokenizer))
+
+    # Apply PEFT if specified
+    if args.use_peft:
+        pretrained_model = PEFTManager.apply_peft(pretrained_model, args.use_peft)
     model_hparams = Namespace(
         lr=args.lr,
         epochs=args.epochs,
         warmup_steps=warmup_steps,
         accumulate_grad_batches=int(args.grad_steps),
     )
-    model = CLMModel(
-        args.model_name,
+    clm_model = CLMModel(
+        pretrained_model,
         model_hparams,
-        args.use_peft,
-        args.scale_peft,
-        tokenizer,
     )
-    return model
+    return clm_model
 
 
 def perform_evaluation(
-    model, tokenizer, temperatures, sample_question, possible_answers
+    model,
+    tokenizer,
+    temperatures,
+    sample_question,
+    possible_answers,
+    args,
+    scale_peft=None,
 ):
     """
-    Perform personality evaluation before and after training.
+    Performs model evaluation by generating responses to specific questions.
+
+    Args:
+        model: The trained model.
+        tokenizer: Tokenizer corresponding to the model.
+        temperatures: List of temperatures for sampling.
+        sample_question: The question prompt.
+        possible_answers: List of possible answers.
+        args: Experiment arguments.
+        scale_peft: Scaling factor for PEFT layers.
+
+    Returns:
+        pd.DataFrame: DataFrame containing evaluation results.
     """
     model.eval()
-    with torch.no_grad():
-        personality_eval_results = EvalManager.extract_answers(
-            model, tokenizer, sample_question, possible_answers, temps=temperatures
-        )
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+
+    if scale_peft and args.use_peft and hasattr(model, args.use_peft):
+        with rescale_adapter_scale(model, scale_peft):
+            with torch.no_grad():
+                personality_eval_results = EvalManager.extract_answers(
+                    model,
+                    tokenizer,
+                    sample_question,
+                    possible_answers,
+                    temps=temperatures,
+                )
+    else:
+        with torch.no_grad():
+            personality_eval_results = EvalManager.extract_answers(
+                model, tokenizer, sample_question, possible_answers, temps=temperatures
+            )
     return personality_eval_results
 
 
 def main():
     """
-    Main function to set up and execute the experiment.
+    Main function to run the experiment, including setup, training, evaluation,
+    and saving results.
     """
     # Setup
     args, loggers, callbacks, device_config = setup_experiment()
@@ -93,9 +146,11 @@ def main():
 
     # Initialize model
     model = initialize_model(args, data_manager, warmup_steps)
+    # print("Model initialized")
+    # print(model)
 
     # Define Evaluation Parameters
-    temperatures = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+    temperatures = [0.7, 0.8, 0.9, 1]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
     sample_question = "I see myself as someone who"
     possible_answers = [
         "is reserved.",
@@ -112,7 +167,7 @@ def main():
 
     # Pre-Training Evaluation
     personality_eval_pre = perform_evaluation(
-        model, tokenizer, temperatures, sample_question, possible_answers
+        model, tokenizer, temperatures, sample_question, possible_answers, args
     )
 
     # Training
@@ -153,18 +208,51 @@ def main():
             for k, v in test_metrics.items()
         }
 
-    # Post-Training Evaluation
-    personality_eval_post = perform_evaluation(
-        model, tokenizer, temperatures, sample_question, possible_answers
-    )
+    # Post-Training Evaluation with variable PEFT scales
+    peft_scales = [
+        0.1,
+        0.25,
+        0.5,
+        0.75,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        5.0,
+        7.5,
+        10.0,
+        12.5,
+        15.0,
+        20.0,
+        25.0,
+        40.0,
+        50.0,
+        75.0,
+        100.0,
+        150.0,
+        200.0,
+    ]
+    personality_eval_post = {}
+    for scale in peft_scales:
+        personality_eval = perform_evaluation(
+            model,
+            tokenizer,
+            temperatures,
+            sample_question,
+            possible_answers,
+            args,
+            scale,
+        )
+        personality_eval_post[f"scale_{scale}"] = personality_eval.to_dict(
+            orient="records"
+        )
 
     # Save Results
     personality_eval_pre_dict = personality_eval_pre.to_dict(orient="records")
-    personality_eval_post_dict = personality_eval_post.to_dict(orient="records")
     results["personality_eval_pre"] = personality_eval_pre_dict
-    results["personality_eval_post"] = personality_eval_post_dict
+    results["personality_eval_post"] = personality_eval_post
     Utilities.save_experiment_results(args.output, args.exp_id, results)
-    Utilities.update_experiment_metadata(args.base_output_dir, args.exp_id, results)
+    Utilities.update_experiment_metadata(args.output, args.exp_id, results)
 
 
 if __name__ == "__main__":
