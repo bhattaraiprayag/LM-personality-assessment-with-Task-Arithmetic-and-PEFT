@@ -6,8 +6,7 @@ filtering authors, and creating balanced splits.
 import os
 import re
 import time
-from typing import List
-from typing import Optional
+from typing import List, Optional
 
 import ftfy
 import numpy as np
@@ -85,7 +84,7 @@ class DataPreprocessor:
         self.mbti_comments = None
         self.all_traits_comments = None
 
-    def load_data(self):
+    def load_data(self) -> None:
         """
         Loads comments and author profiles from CSV files into DataFrames.
         """
@@ -96,7 +95,7 @@ class DataPreprocessor:
         print(f"Loading author profiles from {author_profiles_path}")
         self.author_profiles = pd.read_csv(author_profiles_path)
 
-    def clean_comments(self):
+    def clean_comments(self) -> None:
         """
         Cleans the comments by removing unwanted characters, HTML tags,
         URLs, and fixing encoding issues.
@@ -108,7 +107,7 @@ class DataPreprocessor:
         self.comments["body"] = self.comments["body"].progress_apply(self.clean_comment)
 
     @staticmethod
-    def clean_comment(comment):
+    def clean_comment(comment) -> str:
         """
         Cleans a single comment by removing HTML tags, URLs, and fixing
         encoding issues.
@@ -127,7 +126,7 @@ class DataPreprocessor:
         comment = re.sub(r"\s+", " ", comment.strip())
         return comment
 
-    def filter_authors_with_profiles(self):
+    def filter_authors_with_profiles(self) -> None:
         """
         Filters comments to include only those from authors who have
         profile information.
@@ -145,7 +144,7 @@ class DataPreprocessor:
         rows_removed = len(self.comments) - len(self.filtered_comments)
         print(f"Number of rows removed from comments: {rows_removed}")
 
-    def filter_authors_with_complete_traits(self):
+    def filter_authors_with_complete_traits(self) -> None:
         """
         Filters comments to include only those from authors with complete
         OCEAN and MBTI trait data.
@@ -183,7 +182,9 @@ class DataPreprocessor:
             f"Total comments from authors with all traits: {len(self.all_traits_comments)}"
         )
 
-    def get_top_bottom_percentile_comments(self, trait, percentile, comments, top=True):
+    def get_top_bottom_percentile_comments(
+        self, trait, percentile, comments, top=True
+    ) -> pd.DataFrame:
         """
         Retrieves comments from authors in the top or bottom percentile
         for a given trait.
@@ -211,7 +212,7 @@ class DataPreprocessor:
         filtered_comments = comments[comments["author"].isin(percentile_authors)]
         return filtered_comments
 
-    def perform_splitting(self):
+    def perform_splitting(self) -> None:
         """
         Performs splitting of data into balanced datasets based on percentile
         values for each trait.
@@ -269,7 +270,7 @@ class DataPreprocessor:
                 )
             time.sleep(1)
 
-    def save_comments(self):
+    def save_comments(self) -> None:
         """
         Saves filtered comments DataFrames to CSV files.
         """

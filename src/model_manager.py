@@ -4,8 +4,7 @@ Module defining the CLMModel class for language model training
 using PyTorch Lightning.
 """
 from argparse import Namespace
-from typing import Dict
-from typing import List
+from typing import Dict, List
 
 import pytorch_lightning as pl
 import torch
@@ -25,11 +24,7 @@ class CLMModel(pl.LightningModule):
         metrics (Dict[str, List[float]]): Dictionary to store training metrics.
     """
 
-    def __init__(
-        self,
-        model,
-        model_hparams: Namespace,
-    ):
+    def __init__(self, model, model_hparams: Namespace):
         """
         Initializes the CLMModel with the given model and hyperparameters.
 
@@ -52,7 +47,7 @@ class CLMModel(pl.LightningModule):
         self.validation_step_outputs: List[Dict[str, torch.Tensor]] = []
         self.test_step_outputs: List[Dict[str, torch.Tensor]] = []
 
-    def forward(self, *args, **kwargs):
+    def forward(self, *args, **kwargs) -> CausalLMOutputWithCrossAttentions:
         """
         Forward pass of the model.
 
@@ -62,7 +57,9 @@ class CLMModel(pl.LightningModule):
         return self.model(*args, **kwargs)
 
     def compute_loss(
-        self, outputs: CausalLMOutputWithCrossAttentions, batch: Dict[str, torch.Tensor]
+        self,
+        outputs: CausalLMOutputWithCrossAttentions,
+        _batch: Dict[str, torch.Tensor],
     ) -> torch.Tensor:
         """
         Computes the loss between model outputs and targets.
@@ -76,7 +73,7 @@ class CLMModel(pl.LightningModule):
         """
         return outputs.loss
 
-    def training_step(self, batch: dict, _batch_idx: int):
+    def training_step(self, batch: dict, _batch_idx: int) -> Dict[str, torch.Tensor]:
         """
         Performs a single training step.
 
@@ -99,7 +96,7 @@ class CLMModel(pl.LightningModule):
         )
         return {"loss": loss}
 
-    def validation_step(self, batch: dict, _batch_idx: int):
+    def validation_step(self, batch: dict, _batch_idx: int) -> Dict[str, torch.Tensor]:
         """
         Performs a single validation step.
 
@@ -123,7 +120,7 @@ class CLMModel(pl.LightningModule):
         self.validation_step_outputs.append({"loss": loss})
         return {"loss": loss}
 
-    def test_step(self, batch: dict, _batch_idx: int):
+    def test_step(self, batch: dict, _batch_idx: int) -> Dict[str, torch.Tensor]:
         """
         Performs a single test step.
 
@@ -147,7 +144,7 @@ class CLMModel(pl.LightningModule):
         self.test_step_outputs.append({"loss": loss})
         return {"loss": loss}
 
-    def on_validation_epoch_end(self):
+    def on_validation_epoch_end(self) -> None:
         """
         Calculates and logs average validation loss and perplexity at the
         end of each validation epoch.
@@ -160,7 +157,7 @@ class CLMModel(pl.LightningModule):
         self.metrics["val_perplexity"].append(perplexity.item())
         self.validation_step_outputs.clear()
 
-    def on_test_epoch_end(self):
+    def on_test_epoch_end(self) -> None:
         """
         Calculates and logs average test loss and perplexity at the
         end of testing.
@@ -173,7 +170,7 @@ class CLMModel(pl.LightningModule):
         self.metrics["test_perplexity"].append(perplexity.item())
         self.test_step_outputs.clear()
 
-    def get_metrics(self):
+    def get_metrics(self) -> Dict[str, List[float]]:
         """
         Retrieves the stored training metrics.
 
@@ -182,7 +179,7 @@ class CLMModel(pl.LightningModule):
         """
         return self.metrics
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> torch.optim.Optimizer:
         """
         Configures the optimizer for training.
 

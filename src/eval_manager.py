@@ -3,8 +3,7 @@
 Module for evaluating language models by extracting and analyzing
 their responses to specific prompts.
 """
-from typing import List
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -28,7 +27,7 @@ class EvalManager:
         variant=1,
         instr_tag_before="",
         instr_tag_after="",
-    ):
+    ) -> pd.DataFrame:
         """
         Generates model responses to a set of questions and computes
         probabilities for each answer.

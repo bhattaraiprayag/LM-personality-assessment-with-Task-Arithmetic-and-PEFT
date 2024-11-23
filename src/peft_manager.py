@@ -1,9 +1,9 @@
 # src/peft_manager.py
 """
-Module for applying Parameter-Efficient Fine-Tuning (PEFT) methods to models.
+Module for applying Parameter-Efficient Fine-Tuning (PEFT) methods
+to models.
 """
-from peft import get_peft_model
-from peft import LoraConfig
+from peft import LoraConfig, get_peft_model
 
 
 class PEFTManager:
@@ -12,7 +12,7 @@ class PEFTManager:
     """
 
     @staticmethod
-    def apply_peft(model, use_peft: str):
+    def apply_peft(model, use_peft: str) -> object:
         """
         Applies the specified PEFT method to the given model.
 
@@ -33,7 +33,7 @@ class PEFTManager:
         raise ValueError(f"PEFT method '{use_peft}' is not supported.")
 
     @staticmethod
-    def get_peft_config(peft_type: str):
+    def get_peft_config(peft_type: str) -> LoraConfig:
         """
         Retrieves the PEFT configuration for the specified method.
 

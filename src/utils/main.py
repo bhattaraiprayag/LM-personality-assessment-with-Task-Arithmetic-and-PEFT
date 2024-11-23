@@ -1,10 +1,8 @@
 # src/utils/main.py
-
 """
-Main utility module containing functions for argument parsing, environment setup, and
-housekeeping tasks.
+Main utility module containing functions for argument parsing, environment
+setup, and housekeeping tasks.
 """
-
 import json
 import logging
 import math
@@ -23,11 +21,8 @@ import transformers
 from dotenv import load_dotenv
 from lightning.pytorch import seed_everything
 from pytorch_lightning import LightningModule
-from pytorch_lightning.callbacks import (
-    EarlyStopping,
-    ModelCheckpoint,
-    StochasticWeightAveraging,
-)
+from pytorch_lightning.callbacks import (EarlyStopping, ModelCheckpoint,
+                                         StochasticWeightAveraging)
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.tuner import Tuner
 from pytorch_lightning.utilities import rank_zero_only
@@ -71,8 +66,8 @@ class Utilities:
             seed (int): Seed value.
         """
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = (
-            ":4096:8"
-        )  # VITAL: This has to come before torch.backends.cudnn.deterministic = True
+            ":4096:8"  # VITAL: This has to come before torch.backends.cudnn.deterministic = True
+        )
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -118,7 +113,7 @@ class Utilities:
         Sets the optimal number of workers for DataLoader.
 
         Returns:
-            int: Number of workers.        
+            int: Number of workers.
         """
         num_cpu_cores = os.cpu_count() or 1
         optimal_workers = min(16, max(1, num_cpu_cores // 2))
@@ -128,7 +123,7 @@ class Utilities:
     def identify_gpu_devices(args: ExperimentArguments) -> List[int]:
         """
         Identifies available CUDA devices.
-        
+
         Returns:
             Union[int, List[int], str]: List of device IDs.
         """
@@ -194,8 +189,9 @@ class Utilities:
 
     @staticmethod
     @rank_zero_only
-    def save_experiment_metadata(args: ExperimentArguments, experiment_id: str,
-                                 output_dir: str) -> None:
+    def save_experiment_metadata(
+        args: ExperimentArguments, experiment_id: str, output_dir: str
+    ) -> None:
         """
         Saves experiment metadata to a JSON file.
 
@@ -219,8 +215,9 @@ class Utilities:
 
     @staticmethod
     @rank_zero_only
-    def update_experiment_metadata(output_dir: str, experiment_id: str,
-                                   results: dict) -> None:
+    def update_experiment_metadata(
+        output_dir: str, experiment_id: str, results: dict
+    ) -> None:
         """
         Updates experiment metadata with results.
 
@@ -251,8 +248,9 @@ class Utilities:
 
     @staticmethod
     @rank_zero_only
-    def save_experiment_results(output_dir: str, experiment_id: str,
-                                results: dict) -> None:
+    def save_experiment_results(
+        output_dir: str, experiment_id: str, results: dict
+    ) -> None:
         """
         Saves experiment results to a JSON file.
 
@@ -305,8 +303,12 @@ class Utilities:
         return handlers.get(type(data), lambda d: d)(data)
 
     @staticmethod
-    def find_max_batch_size(model: torch.nn.Module, tokenizer, device: torch.device,
-                            args: ExperimentArguments) -> int:
+    def find_max_batch_size(
+        model: torch.nn.Module,
+        tokenizer,
+        device: torch.device,
+        args: ExperimentArguments,
+    ) -> int:
         """
         Finds the maximum batch size that can be used for training.
 
@@ -315,7 +317,7 @@ class Utilities:
             tokenizer: Tokenizer for the model.
             device (torch.device): Device to use.
             args (ExperimentArguments): Parsed arguments.
-        
+
         Returns:
             int: Maximum batch size.
         """
@@ -349,8 +351,11 @@ class Utilities:
         return batch_size
 
     @staticmethod
-    def find_optimal_lr(model: LightningModule, train_loader: torch.utils.data.DataLoader,
-                        args: ExperimentArguments) -> float:
+    def find_optimal_lr(
+        model: LightningModule,
+        train_loader: torch.utils.data.DataLoader,
+        args: ExperimentArguments,
+    ) -> float:
         """
         Finds the optimal learning rate using the Learning Rate Finder.
 
@@ -422,8 +427,9 @@ class Utilities:
             )
 
     @staticmethod
-    def create_loggers(output_dir: str, experiment_id: str,
-                       args: ExperimentArguments) -> tuple:
+    def create_loggers(
+        output_dir: str, experiment_id: str, args: ExperimentArguments
+    ) -> tuple:
         """
         Creates TensorBoard and WandB loggers for experiment tracking.
 

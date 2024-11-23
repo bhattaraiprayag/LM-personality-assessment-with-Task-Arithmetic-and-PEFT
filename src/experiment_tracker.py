@@ -41,7 +41,9 @@ class ExperimentTracker:
         excel_file (str): Path to the Excel file summarizing experiments.
     """
 
-    def __init__(self, metadata_file, output_dir, excel_file="experiment_results.xlsx"):
+    def __init__(
+        self, metadata_file, output_dir, excel_file="experiment_results.xlsx"
+    ) -> None:
         """
         Initializes the ExperimentTracker with metadata and output paths.
 
@@ -55,7 +57,7 @@ class ExperimentTracker:
         self.excel_file = os.path.join(self.output_dir, excel_file)
         self.metadata = self._load_metadata()
 
-    def _load_metadata(self):
+    def _load_metadata(self) -> dict:
         """
         Loads experiment metadata from a JSON file.
 
@@ -65,7 +67,7 @@ class ExperimentTracker:
         with open(self.metadata_file, "r") as file:
             return json.load(file)
 
-    def _extract_args(self, experiment_data):
+    def _extract_args(self, experiment_data: dict) -> tuple:
         """
         Extracts arguments and results from experiment data.
 
@@ -80,7 +82,7 @@ class ExperimentTracker:
         results = args.pop("results", None)
         return args, results
 
-    def update_excel(self):
+    def update_excel(self) -> None:
         """
         Updates the Excel file with experiment arguments and generated
         commands.
@@ -99,7 +101,7 @@ class ExperimentTracker:
         df.to_excel(self.excel_file, index=False)
         print(f"Updated {self.excel_file} with experiment data.")
 
-    def _generate_command(self, args):
+    def _generate_command(self, args: dict) -> str:
         """
         Generates a command-line string for running an experiment based
         on its arguments.
@@ -119,7 +121,7 @@ class ExperimentTracker:
             command += f"--scale_peft {args['scale_peft']} "
         return command
 
-    def save_evaluation_results(self):
+    def save_evaluation_results(self) -> None:
         """
         Saves pre- and post-finetuning evaluation results to CSV files.
         """
@@ -133,7 +135,7 @@ class ExperimentTracker:
                     exp_id, results["personality_eval_post"], "post"
                 )
 
-    def _save_pre_post_results(self, exp_id, eval_data, phase):
+    def _save_pre_post_results(self, exp_id: str, eval_data: dict, phase: str) -> None:
         """
         Saves evaluation results for a specific phase (pre or post finetuning).
 
@@ -148,6 +150,15 @@ class ExperimentTracker:
         answer_to_trait_key = {v: k for k, v in OCEAN_TRAIT_ANSWER_KEYS.items()}
 
         def extract_trait_polarity(answer):
+            """
+            Extracts trait and polarity from an answer.
+
+            Args:
+                answer (str): Answer text.
+
+            Returns:
+                pd.Series: Series containing trait, polarity, and trait code.
+            """
             trait_key = answer_to_trait_key.get(answer)
             if trait_key:
                 trait_code, polarity = trait_key.split()
@@ -246,7 +257,7 @@ class ExperimentTracker:
         print(f"Saved {phase}-finetuning base results to {base_results_path}.")
         print(f"Saved {phase}-finetuning net results to {net_results_path}.")
 
-    def perform_horizontal_normalization(self):
+    def perform_horizontal_normalization(self) -> None:
         """
         Performs horizontal normalization of probabilities across experiments
         for the same data split.
@@ -410,7 +421,7 @@ class ExperimentTracker:
                                 f"Updated {phase}-finetuning net results for experiment {exp_id} at {net_results_path}."
                             )
 
-    def run(self):
+    def run(self) -> None:
         """
         Runs the full tracking process: updating Excel summaries,
         saving evaluation results, and normalizing data.

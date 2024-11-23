@@ -1,0 +1,34 @@
+# # This file is used to generate the requirements.txt file
+
+# # NOTE: If you're not using the requirements.txt file to install dependencies, you can simply install the packages listed below using pip, in this order:
+    # 1: pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cu118 --no-cache-dir           # To install PyTorch with CUDA 11.8:
+    # 2: pip install pandas pyarrow datasets python-dotenv ftfy openpyxl transformers accelerate peft pytorch-lightning lightning tensorboard scikit-learn wandb matplotlib seaborn pip-tools black isort pylint flake8 --no-cache-dir                  # To install the other dependencies
+
+
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch==2.4.0+cu118
+torchvision==0.19.0+cu118
+torchaudio==2.4.0+cu118
+
+# Other dependencies
+pandas
+pyarrow
+datasets
+python-dotenv
+ftfy
+openpyxl
+transformers
+accelerate
+peft
+pytorch-lightning
+lightning
+tensorboard
+scikit-learn
+wandb
+matplotlib
+seaborn
+pip-tools
+black
+isort
+pylint
+flake8

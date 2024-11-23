@@ -1,9 +1,9 @@
 # src/utils/args_parser.py
 """
-Module defining the ExperimentArguments dataclass for parsing command-line arguments.
+Module defining the ExperimentArguments dataclass for parsing
+command-line arguments.
 """
-from dataclasses import dataclass
-from dataclasses import field
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -108,7 +108,9 @@ class ExperimentArguments:
     )
     optimal_lr: Optional[float] = field(
         default=None,
-        metadata={"help": "Optimal learning rate found by the learning rate finder"},
+        metadata={
+            "help": "Optimal learning rate to be found by the Learning Rate Finder"
+        },
     )
     exp_id: Optional[str] = field(
         default=None,

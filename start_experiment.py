@@ -1,10 +1,12 @@
 # start_experiment.py
 """
-Script to initialize and run an experiment, including data preparation, model training, and evaluation.
+Script to initialize and run an experiment, including data preparation, model
+training, and evaluation.
 """
 import math
 from argparse import Namespace
 
+import pandas as pd
 import pytorch_lightning as pl
 import torch
 from peft.helpers import rescale_adapter_scale
@@ -19,7 +21,7 @@ from src.utils.main import Utilities
 Utilities.suppress_warnings()
 
 
-def setup_experiment():
+def setup_experiment() -> tuple:
     """
     Sets up the experiment by parsing arguments and preparing the environment.
 
@@ -30,7 +32,7 @@ def setup_experiment():
     return args, loggers, callbacks, device_config
 
 
-def prepare_data(args):
+def prepare_data(args: Namespace) -> DataManager:
     """
     Prepares the data using the DataManager.
 
@@ -45,7 +47,10 @@ def prepare_data(args):
     return data_manager
 
 
-def initialize_model(args, data_manager, warmup_steps):
+# def initialize_model(args, data_manager, warmup_steps):
+def initialize_model(
+    args: Namespace, data_manager: DataManager, warmup_steps: int
+) -> CLMModel:
     """
     Initializes the model and wraps it with PEFT if specified.
 
@@ -84,7 +89,7 @@ def perform_evaluation(
     possible_answers,
     args,
     scale_peft=None,
-):
+) -> pd.DataFrame:
     """
     Performs model evaluation by generating responses to specific questions.
 
@@ -122,7 +127,7 @@ def perform_evaluation(
     return personality_eval_results
 
 
-def main():
+def main() -> None:
     """
     Main function to run the experiment, including setup, training, evaluation,
     and saving results.

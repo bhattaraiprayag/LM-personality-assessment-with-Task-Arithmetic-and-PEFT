@@ -5,10 +5,7 @@ tokenization, and DataLoader creation for language modeling tasks.
 """
 import os
 import random
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -19,13 +16,12 @@ import torch
 from datasets import Dataset
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
-from transformers import AutoTokenizer
-from transformers import DataCollatorForLanguageModeling
+from transformers import AutoTokenizer, DataCollatorForLanguageModeling
 
 from src.utils.helper import print_output
 
 
-def seed_worker(worker_id):
+def seed_worker(worker_id) -> None:
     """
     Sets seeds for random number generators in worker
     processes for data loading to ensure reproducibility.
@@ -75,7 +71,7 @@ class DataManager(pl.LightningDataModule):
         self.generator = torch.Generator()
         self.generator.manual_seed(self.seed)
 
-    def choose_dataset(self):
+    def choose_dataset(self) -> str:
         """
         Determines the file path of the dataset based on the selected
         dataset and split.
@@ -110,7 +106,7 @@ class DataManager(pl.LightningDataModule):
             raise ValueError(f"Dataset '{self.args.dataset}' is not supported.")
         return path
 
-    def prepare_splits(self):
+    def prepare_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Loads the dataset and splits it into training, validation,
         and test sets.
@@ -199,7 +195,7 @@ class DataManager(pl.LightningDataModule):
         trait_split: str,
         split_type: str,
         subset: Optional[int] = None,
-    ):
+    ) -> None:
         """
         Saves the tokenized dataset to a Parquet file for faster loading
         in future runs.
@@ -225,7 +221,7 @@ class DataManager(pl.LightningDataModule):
 
     def load_tokenized_dataset(
         self, trait_split: str, split_type: str, subset: Optional[int] = None
-    ):
+    ) -> Dataset:
         """
         Loads a previously saved tokenized dataset from a Parquet file.
 
@@ -245,13 +241,13 @@ class DataManager(pl.LightningDataModule):
         dataset = Dataset.from_pandas(df)
         return dataset
 
-    def prepare_data(self):
+    def prepare_data(self) -> None:
         """
         Prepares the data for training. To be implemented in future.
         """
         pass
 
-    def setup(self, stage: Optional[str] = None):
+    def setup(self, stage: Optional[str] = None) -> None:
         """
         Sets up the DataManager by preparing data splits and
         tokenizing datasets.
@@ -285,7 +281,7 @@ class DataManager(pl.LightningDataModule):
                 self.tokenized_test, self.args.split, "test", self.args.subset
             )
 
-    def train_dataloader(self):
+    def train_dataloader(self) -> DataLoader:
         """
         Creates the DataLoader for the training dataset.
 
@@ -305,7 +301,7 @@ class DataManager(pl.LightningDataModule):
             generator=self.generator,
         )
 
-    def val_dataloader(self):
+    def val_dataloader(self) -> DataLoader:
         """
         Creates the DataLoader for the validation dataset.
 
@@ -324,7 +320,7 @@ class DataManager(pl.LightningDataModule):
             generator=self.generator,
         )
 
-    def test_dataloader(self):
+    def test_dataloader(self) -> DataLoader:
         """
         Creates the DataLoader for the test dataset.
 
