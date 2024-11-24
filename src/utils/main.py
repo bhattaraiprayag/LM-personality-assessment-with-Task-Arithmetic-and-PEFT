@@ -189,9 +189,8 @@ class Utilities:
 
     @staticmethod
     @rank_zero_only
-    def save_experiment_metadata(
-        args: ExperimentArguments, experiment_id: str, output_dir: str
-    ) -> None:
+    def save_experiment_metadata(args: ExperimentArguments, experiment_id: str,
+                                 output_dir: str) -> None:
         """
         Saves experiment metadata to a JSON file.
 
@@ -215,9 +214,8 @@ class Utilities:
 
     @staticmethod
     @rank_zero_only
-    def update_experiment_metadata(
-        output_dir: str, experiment_id: str, results: dict
-    ) -> None:
+    def update_experiment_metadata(output_dir: str, experiment_id: str,
+                                   results: dict) -> None:
         """
         Updates experiment metadata with results.
 
@@ -248,9 +246,8 @@ class Utilities:
 
     @staticmethod
     @rank_zero_only
-    def save_experiment_results(
-        output_dir: str, experiment_id: str, results: dict
-    ) -> None:
+    def save_experiment_results(output_dir: str, experiment_id: str,
+                                results: dict) -> None:
         """
         Saves experiment results to a JSON file.
 
@@ -303,12 +300,8 @@ class Utilities:
         return handlers.get(type(data), lambda d: d)(data)
 
     @staticmethod
-    def find_max_batch_size(
-        model: torch.nn.Module,
-        tokenizer,
-        device: torch.device,
-        args: ExperimentArguments,
-    ) -> int:
+    def find_max_batch_size(model: torch.nn.Module, tokenizer, device: torch.device,
+                            args: ExperimentArguments) -> int:
         """
         Finds the maximum batch size that can be used for training.
 
@@ -351,11 +344,8 @@ class Utilities:
         return batch_size
 
     @staticmethod
-    def find_optimal_lr(
-        model: LightningModule,
-        train_loader: torch.utils.data.DataLoader,
-        args: ExperimentArguments,
-    ) -> float:
+    def find_optimal_lr(model: LightningModule, train_loader: torch.utils.data.DataLoader,
+                        args: ExperimentArguments) -> float:
         """
         Finds the optimal learning rate using the Learning Rate Finder.
 
@@ -427,9 +417,8 @@ class Utilities:
             )
 
     @staticmethod
-    def create_loggers(
-        output_dir: str, experiment_id: str, args: ExperimentArguments
-    ) -> tuple:
+    def create_loggers(output_dir: str, experiment_id: str,
+                       args: ExperimentArguments) -> tuple:
         """
         Creates TensorBoard and WandB loggers for experiment tracking.
 

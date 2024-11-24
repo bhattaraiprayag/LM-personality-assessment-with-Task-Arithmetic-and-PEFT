@@ -41,9 +41,8 @@ class ExperimentTracker:
         excel_file (str): Path to the Excel file summarizing experiments.
     """
 
-    def __init__(
-        self, metadata_file, output_dir, excel_file="experiment_results.xlsx"
-    ) -> None:
+    def __init__(self, metadata_file, output_dir,
+                 excel_file="experiment_results.xlsx") -> None:
         """
         Initializes the ExperimentTracker with metadata and output paths.
 
@@ -135,7 +134,8 @@ class ExperimentTracker:
                     exp_id, results["personality_eval_post"], "post"
                 )
 
-    def _save_pre_post_results(self, exp_id: str, eval_data: dict, phase: str) -> None:
+    def _save_pre_post_results(self, exp_id: str, eval_data: dict,
+                               phase: str) -> None:
         """
         Saves evaluation results for a specific phase (pre or post finetuning).
 

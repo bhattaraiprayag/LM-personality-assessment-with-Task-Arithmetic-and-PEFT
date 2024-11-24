@@ -17,17 +17,11 @@ class EvalManager:
     """
 
     @staticmethod
-    def extract_answers(
-        model,
-        tokenizer,
-        question: str,
-        answers: list,
-        values: Optional[list] = None,
-        temps: Optional[List[float]] = None,
-        variant=1,
-        instr_tag_before="",
-        instr_tag_after="",
-    ) -> pd.DataFrame:
+    def extract_answers(model, tokenizer, question: str,
+                        answers: list, values: Optional[list] = None,
+                        temps: Optional[List[float]] = None, variant=1,
+                        instr_tag_before="", instr_tag_after=""
+                        ) -> pd.DataFrame:
         """
         Generates model responses to a set of questions and computes
         probabilities for each answer.

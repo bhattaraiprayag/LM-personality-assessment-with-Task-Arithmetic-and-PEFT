@@ -189,13 +189,8 @@ class DataManager(pl.LightningDataModule):
         )
         return tokenized_dataset
 
-    def save_tokenized_dataset(
-        self,
-        dataset: Dataset,
-        trait_split: str,
-        split_type: str,
-        subset: Optional[int] = None,
-    ) -> None:
+    def save_tokenized_dataset(self, dataset: Dataset, trait_split: str,
+                               split_type: str, subset: Optional[int] = None) -> None:
         """
         Saves the tokenized dataset to a Parquet file for faster loading
         in future runs.
@@ -219,9 +214,8 @@ class DataManager(pl.LightningDataModule):
             table, save_to_path, compression="zstd", use_dictionary=True, version="2.6"
         )
 
-    def load_tokenized_dataset(
-        self, trait_split: str, split_type: str, subset: Optional[int] = None
-    ) -> Dataset:
+    def load_tokenized_dataset(self, trait_split: str, split_type: str,
+                               subset: Optional[int] = None) -> Dataset:
         """
         Loads a previously saved tokenized dataset from a Parquet file.
 
@@ -271,15 +265,15 @@ class DataManager(pl.LightningDataModule):
             self.tokenized_train = self.tokenize_dataset(train_df)
             self.tokenized_val = self.tokenize_dataset(val_df)
             self.tokenized_test = self.tokenize_dataset(test_df)
-            self.save_tokenized_dataset(
-                self.tokenized_train, self.args.split, "train", self.args.subset
-            )
-            self.save_tokenized_dataset(
-                self.tokenized_val, self.args.split, "val", self.args.subset
-            )
-            self.save_tokenized_dataset(
-                self.tokenized_test, self.args.split, "test", self.args.subset
-            )
+            self.save_tokenized_dataset(self.tokenized_train,
+                                        self.args.split,
+                                        "train", self.args.subset)
+            self.save_tokenized_dataset(self.tokenized_val,
+                                        self.args.split, "val",
+                                        self.args.subset)
+            self.save_tokenized_dataset(self.tokenized_test,
+                                        self.args.split, "test",
+                                        self.args.subset)
 
     def train_dataloader(self) -> DataLoader:
         """

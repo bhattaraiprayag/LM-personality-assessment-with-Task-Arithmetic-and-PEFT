@@ -47,16 +47,12 @@ class DataPreprocessor:
         "Ã¼": "ü",  # Latin small letter u with umlaut
     }
 
-    def __init__(
-        self,
-        data_folder: str,
-        comments_file: str,
-        author_profiles_file: str,
-        splits_folder_balanced: Optional[str] = None,
-        ocean_traits: Optional[List[str]] = None,
-        mbti_traits: Optional[List[str]] = None,
-        k_values: Optional[List[int]] = None,
-    ):
+    def __init__(self, data_folder: str, comments_file: str,
+                 author_profiles_file: str,
+                 splits_folder_balanced: Optional[str] = None,
+                 ocean_traits: Optional[List[str]] = None,
+                 mbti_traits: Optional[List[str]] = None,
+                 k_values: Optional[List[int]] = None) -> None:
         self.data_folder = data_folder
         self.comments_file = comments_file
         self.author_profiles_file = author_profiles_file
@@ -182,9 +178,8 @@ class DataPreprocessor:
             f"Total comments from authors with all traits: {len(self.all_traits_comments)}"
         )
 
-    def get_top_bottom_percentile_comments(
-        self, trait, percentile, comments, top=True
-    ) -> pd.DataFrame:
+    def get_top_bottom_percentile_comments(self, trait, percentile,
+                                           comments, top=True) -> pd.DataFrame:
         """
         Retrieves comments from authors in the top or bottom percentile
         for a given trait.

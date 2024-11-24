@@ -48,9 +48,8 @@ def prepare_data(args: Namespace) -> DataManager:
 
 
 # def initialize_model(args, data_manager, warmup_steps):
-def initialize_model(
-    args: Namespace, data_manager: DataManager, warmup_steps: int
-) -> CLMModel:
+def initialize_model(args: Namespace, data_manager: DataManager,
+                     warmup_steps: int) -> CLMModel:
     """
     Initializes the model and wraps it with PEFT if specified.
 
@@ -81,15 +80,8 @@ def initialize_model(
     return clm_model
 
 
-def perform_evaluation(
-    model,
-    tokenizer,
-    temperatures,
-    sample_question,
-    possible_answers,
-    args,
-    scale_peft=None,
-) -> pd.DataFrame:
+def perform_evaluation(model, tokenizer, temperatures, sample_question,
+                       possible_answers, args, scale_peft=None) -> pd.DataFrame:
     """
     Performs model evaluation by generating responses to specific questions.
 
@@ -113,17 +105,13 @@ def perform_evaluation(
         with rescale_adapter_scale(model, scale_peft):
             with torch.no_grad():
                 personality_eval_results = EvalManager.extract_answers(
-                    model,
-                    tokenizer,
-                    sample_question,
-                    possible_answers,
-                    temps=temperatures,
-                )
+                    model, tokenizer, sample_question,
+                    possible_answers, temps=temperatures)
     else:
         with torch.no_grad():
             personality_eval_results = EvalManager.extract_answers(
-                model, tokenizer, sample_question, possible_answers, temps=temperatures
-            )
+                model, tokenizer, sample_question,
+                possible_answers, temps=temperatures)
     return personality_eval_results
 
 
@@ -171,9 +159,8 @@ def main() -> None:
     ]
 
     # Pre-Training Evaluation
-    personality_eval_pre = perform_evaluation(
-        model, tokenizer, temperatures, sample_question, possible_answers, args
-    )
+    personality_eval_pre = perform_evaluation(model, tokenizer, temperatures,
+                                              sample_question, possible_answers, args)
 
     # Training
     model.train()
@@ -190,11 +177,8 @@ def main() -> None:
         precision=16,
         deterministic=True,
     )
-    trainer.fit(
-        model,
-        train_dataloaders=data_manager.train_dataloader(),
-        val_dataloaders=data_manager.val_dataloader(),
-    )
+    trainer.fit(model, train_dataloaders=data_manager.train_dataloader(),
+                val_dataloaders=data_manager.val_dataloader())
 
     # Collect Training Results
     results = {}
@@ -239,15 +223,9 @@ def main() -> None:
     ]
     personality_eval_post = {}
     for scale in peft_scales:
-        personality_eval = perform_evaluation(
-            model,
-            tokenizer,
-            temperatures,
-            sample_question,
-            possible_answers,
-            args,
-            scale,
-        )
+        personality_eval = perform_evaluation(model, tokenizer, temperatures,
+                                              sample_question, possible_answers,
+                                              args, scale)
         personality_eval_post[f"scale_{scale}"] = personality_eval.to_dict(
             orient="records"
         )
