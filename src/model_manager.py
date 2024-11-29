@@ -186,5 +186,9 @@ class CLMModel(pl.LightningModule):
         Returns:
             Optimizer: The optimizer to use.
         """
-        optimizer = AdamW(self.model.parameters(), lr=self.model_hparams.lr)
+        # optimizer = AdamW(self.model.parameters(), lr=self.model_hparams.lr)
+        optimizer = AdamW(
+            filter(lambda p: p.requires_grad, self.model.parameters()),
+            lr=self.model_hparams.lr
+        )
         return optimizer

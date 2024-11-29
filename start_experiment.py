@@ -10,6 +10,7 @@ import pandas as pd
 import pytorch_lightning as pl
 import torch
 from peft.helpers import rescale_adapter_scale
+from peft.tuners.lora import LoraLayer
 from transformers import AutoModelForCausalLM
 
 from src.data_manager import DataManager
@@ -63,6 +64,13 @@ def initialize_model(args: Namespace, data_manager: DataManager,
     """
     pretrained_model = AutoModelForCausalLM.from_pretrained(args.model_name)
     pretrained_model.resize_token_embeddings(len(data_manager.tokenizer))
+    # print(f"Pretrained Model")
+    # print(pretrained_model)
+
+    # Ensure parameters are trainable if not using PEFT
+    if not args.use_peft:
+        for param in pretrained_model.parameters():
+            param.requires_grad = True
 
     # Apply PEFT if specified
     if args.use_peft:
@@ -77,6 +85,8 @@ def initialize_model(args: Namespace, data_manager: DataManager,
         pretrained_model,
         model_hparams,
     )
+    # print(f"CLM Model")
+    # print(clm_model)
     return clm_model
 
 
@@ -97,19 +107,21 @@ def perform_evaluation(model, tokenizer, temperatures, sample_question,
     Returns:
         pd.DataFrame: DataFrame containing evaluation results.
     """
-    model.eval()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
+    # model.eval()
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # model = model.to(device)
 
-    if scale_peft and args.use_peft and hasattr(model, args.use_peft):
+    # if scale_peft and args.use_peft and hasattr(model, args.use_peft):
+    # if scale_peft is not None and args.use_peft and any(hasattr(module, 'scale') for module in model.modules()):
+    if scale_peft is not None and args.use_peft and any(isinstance(module, LoraLayer) for module in model.modules()):
         with rescale_adapter_scale(model, scale_peft):
-            with torch.no_grad():
-                personality_eval_results = EvalManager.extract_answers(
+            # with torch.no_grad():
+            personality_eval_results = EvalManager.extract_answers(
                     model, tokenizer, sample_question,
                     possible_answers, temps=temperatures)
     else:
-        with torch.no_grad():
-            personality_eval_results = EvalManager.extract_answers(
+        # with torch.no_grad():
+        personality_eval_results = EvalManager.extract_answers(
                 model, tokenizer, sample_question,
                 possible_answers, temps=temperatures)
     return personality_eval_results
@@ -143,24 +155,41 @@ def main() -> None:
     # print(model)
 
     # Define Evaluation Parameters
-    temperatures = [0.7, 0.8, 0.9, 1]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
+    temperatures = [1]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
     sample_question = "I see myself as someone who"
     possible_answers = [
         "is reserved.",
         "is generally trusting.",
         "tends to be lazy.",
-        "is relaxed, handles stress well.",
-        "has few artistic interests.",
-        "is outgoing, sociable.",
-        "tends to find fault with others.",
-        "does a thorough job.",
-        "gets nervous easily.",
-        "has an active imagination.",
+        # "is relaxed, handles stress well.",
+        # "has few artistic interests.",
+        # "is outgoing, sociable.",
+        # "tends to find fault with others.",
+        # "does a thorough job.",
+        # "gets nervous easily.",
+        # "has an active imagination.",
     ]
+    peft_scales = [0.1, 10.0]   # [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0] (if using PEFT)
 
     # Pre-Training Evaluation
-    personality_eval_pre = perform_evaluation(model, tokenizer, temperatures,
-                                              sample_question, possible_answers, args)
+    if args.use_peft:
+        personality_eval_pre = {}
+        for scale in peft_scales:
+            personality_eval = perform_evaluation(model, tokenizer, temperatures,
+                                                  sample_question, possible_answers, args, scale)
+            personality_eval_pre[f"scale_{scale}"] = personality_eval.to_dict(
+                orient="records"
+            )
+    else:
+        # For base models, perform evaluation without PEFT
+        personality_eval = perform_evaluation(model, tokenizer, temperatures,
+                                                sample_question, possible_answers, args)
+        personality_eval_pre = {}
+        # personality_eval_pre = personality_eval.to_dict(orient="records")
+        personality_eval_pre["scale_None"] = personality_eval.to_dict(orient="records")
+
+    # personality_eval_pre = perform_evaluation(model, tokenizer, temperatures,
+    #                                           sample_question, possible_answers, args)
 
     # Training
     model.train()
@@ -180,16 +209,44 @@ def main() -> None:
     trainer.fit(model, train_dataloaders=data_manager.train_dataloader(),
                 val_dataloaders=data_manager.val_dataloader())
 
-    # Collect Training Results
+    # Testing
+    model.eval()
+    test_results = trainer.test(model, dataloaders=data_manager.test_dataloader())
+
+    # Post-Training Evaluation
+    if args.use_peft:
+        personality_eval_post = {}
+        for scale in peft_scales:
+            personality_eval = perform_evaluation(model, tokenizer, temperatures,
+                                                  sample_question, possible_answers,
+                                                  args, scale)
+            personality_eval_post[f"scale_{scale}"] = personality_eval.to_dict(
+                orient="records"
+            )
+    else:
+        # For base models, perform evaluation without PEFT
+        personality_eval = perform_evaluation(model, tokenizer, temperatures,
+                                                   sample_question, possible_answers, args)
+        personality_eval_post = {}
+        # personality_eval_post = personality_eval_post.to_dict(orient="records")
+        personality_eval_post["scale_None"] = personality_eval.to_dict(orient="records")
+        
+    # personality_eval_post = {}
+    # for scale in peft_scales:
+    #     personality_eval = perform_evaluation(model, tokenizer, temperatures,
+    #                                           sample_question, possible_answers,
+    #                                           args, scale)
+    #     personality_eval_post[f"scale_{scale}"] = personality_eval.to_dict(
+    #         orient="records"
+    #     )
+
+    # Collect Results
     results = {}
     train_metrics = trainer.callback_metrics
     results["train_metrics"] = {
         k: v.item() if isinstance(v, torch.Tensor) else v
         for k, v in train_metrics.items()
     }
-
-    # Testing
-    test_results = trainer.test(model, dataloaders=data_manager.test_dataloader())
     if test_results:
         test_metrics = test_results[0]
         results["test_metrics"] = {
@@ -197,42 +254,9 @@ def main() -> None:
             for k, v in test_metrics.items()
         }
 
-    # Post-Training Evaluation with variable PEFT scales
-    peft_scales = [
-        0.1,
-        0.25,
-        0.5,
-        0.75,
-        1.0,
-        1.5,
-        2.0,
-        2.5,
-        5.0,
-        7.5,
-        10.0,
-        12.5,
-        15.0,
-        20.0,
-        25.0,
-        40.0,
-        50.0,
-        75.0,
-        100.0,
-        150.0,
-        200.0,
-    ]
-    personality_eval_post = {}
-    for scale in peft_scales:
-        personality_eval = perform_evaluation(model, tokenizer, temperatures,
-                                              sample_question, possible_answers,
-                                              args, scale)
-        personality_eval_post[f"scale_{scale}"] = personality_eval.to_dict(
-            orient="records"
-        )
-
     # Save Results
-    personality_eval_pre_dict = personality_eval_pre.to_dict(orient="records")
-    results["personality_eval_pre"] = personality_eval_pre_dict
+    # personality_eval_pre_dict = personality_eval_pre.to_dict(orient="records")
+    results["personality_eval_pre"] = personality_eval_pre
     results["personality_eval_post"] = personality_eval_post
     Utilities.save_experiment_results(args.output, args.exp_id, results)
     Utilities.update_experiment_metadata(args.output, args.exp_id, results)
