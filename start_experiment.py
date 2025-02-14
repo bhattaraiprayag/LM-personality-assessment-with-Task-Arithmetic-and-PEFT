@@ -33,7 +33,9 @@ def main() -> None:
     # Initialize model
     model = initialize_model(args, data_manager, warmup_steps)
     # print(model)
+    # print(f"===" * 20)
     # Utilities.print_trainable_params(model)
+    # print(f"===" * 20)
 
     # Define personality evaluation parameters
     temperatures = experiment_config.temperatures
@@ -73,6 +75,7 @@ def main() -> None:
     )
     trainer.fit(model, train_dataloaders=data_manager.train_dataloader(),
                 val_dataloaders=data_manager.val_dataloader())
+    train_metrics = trainer.callback_metrics
 
     # Testing
     model.eval()
@@ -96,7 +99,6 @@ def main() -> None:
 
     # Compile & Save Results
     results = {}
-    train_metrics = trainer.callback_metrics
     results["train_metrics"] = {
         k: v.item() if isinstance(v, torch.Tensor) else v
         for k, v in train_metrics.items()

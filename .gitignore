@@ -81,6 +81,8 @@ cython_debug/
 # Experiment / training outputs
 outputs/
 old_outputs/
+outputs_test/
+outputs_best/
 logs/
 evaluation/results/
 wandb/
