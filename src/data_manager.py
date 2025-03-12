@@ -17,6 +17,9 @@ from datasets import Dataset
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForLanguageModeling
+# from datasets import load_dataset
+from datasets import Dataset as HFDataset  # for clarity
+from datasets import load_dataset
 
 from src.utils.helper import print_output
 
@@ -102,9 +105,46 @@ class DataManager(pl.LightningDataModule):
                         f"Reverting to {base}."
                     )
                     path += base
+        elif self.args.dataset == "emotion":
+            return "USE_HF_TWEET_EVAL_EMOTION"
         else:
             raise ValueError(f"Dataset '{self.args.dataset}' is not supported.")
         return path
+
+    def load_huggingface_tweet_eval_emotion(self) -> pd.DataFrame:
+        """
+        Loads the 'emotion' subset of TweetEval from HuggingFace,
+        filters for anger(0), joy(2), sadness(3),
+        removes occurrences of '@user' or '@ user' from text,
+        filters for the split passed in args (anger, joy, or sadness),
+        returns the resulting data as a Pandas DataFrame with columns [text, label].
+        """
+        ds_dict = load_dataset("cardiffnlp/tweet_eval", "emotion")
+        combined = pd.concat(
+            [
+                ds_dict["train"].to_pandas(),
+                ds_dict["validation"].to_pandas(),
+                ds_dict["test"].to_pandas(),
+            ],
+            ignore_index=True
+        )
+        anger, sadness, joy = 0, 1, 3
+        combined = combined[combined["label"].isin([0, 1, 3])].copy()   # Filter for labels anger(0), joy(1), sadness(3)
+        combined["text"] = combined["text"].str.replace(r"@ ?user", "", regex=True) # Remove '@user' or '@ user' from text
+        combined["text"] = combined["text"].str.replace(r"&amp;", "and", regex=True)    # Replace '&amp;' with 'and'
+        combined["text"] = combined["text"].str.replace(r"&lt;", "<", regex=True)   # Replace '&lt;' with '<'
+        combined["text"] = combined["text"].str.replace(r"&gt;", ">", regex=True)   # Replace '&gt;' with '>'
+        combined["text"] = combined["text"].str.replace(r"\n", " ", regex=True)   # Replace newline characters with spaces
+        filtered = None
+        if self.args.split == "anger":
+            filtered = combined[combined["label"] == anger].copy()
+        elif self.args.split == "joy":
+            filtered = combined[combined["label"] == joy].copy()
+        elif self.args.split == "sadness":
+            filtered = combined[combined["label"] == sadness].copy()
+        else:
+            raise ValueError(f"Split '{self.args.split}' is not supported for the 'emotion' dataset.")
+        return filtered
 
     def prepare_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
@@ -116,12 +156,15 @@ class DataManager(pl.LightningDataModule):
                 for training, validation, and test sets.
         """
         path = self.choose_dataset()
-        dataset = pd.read_csv(path)
-        print_output(f"Original Dataset: {len(dataset)}")
+        if path == "USE_HF_TWEET_EVAL_EMOTION":
+            dataset = self.load_huggingface_tweet_eval_emotion()
+        else:
+            dataset = pd.read_csv(path)
         if self.args.dataset == "pandora":
             dataset = dataset.rename(columns={"body": "text"})
         if self.args.dataset == "jigsaw":
             dataset = dataset.rename(columns={"comment_text": "text"})
+        print_output(f"Original Dataset: {len(dataset)} rows after loading")
         train_val, test = train_test_split(
             dataset, test_size=0.05, random_state=self.args.seed
         )
@@ -150,7 +193,7 @@ class DataManager(pl.LightningDataModule):
         )
         return train, val, test
 
-    def tokenize_dataset(self, dataset: pd.DataFrame) -> Dataset:
+    def tokenize_dataset(self, dataset: pd.DataFrame) -> HFDataset:
         """
         Tokenizes the text data in the dataset using the tokenizer.
 
@@ -177,7 +220,7 @@ class DataManager(pl.LightningDataModule):
             return tokenized_output
 
         if isinstance(dataset, pd.DataFrame):
-            dataset = Dataset.from_pandas(dataset)
+            dataset = HFDataset.from_pandas(dataset)
         tokenized_dataset = dataset.map(tokenize_seqs, batched=True)
         columns_to_keep = ["input_ids", "attention_mask"]
         tokenized_dataset = tokenized_dataset.remove_columns(
@@ -189,7 +232,7 @@ class DataManager(pl.LightningDataModule):
         )
         return tokenized_dataset
 
-    def save_tokenized_dataset(self, dataset: Dataset, trait_split: str,
+    def save_tokenized_dataset(self, dataset: HFDataset, trait_split: str,
                                split_type: str, subset: Optional[int] = None) -> None:
         """
         Saves the tokenized dataset to a Parquet file for faster loading
@@ -215,7 +258,7 @@ class DataManager(pl.LightningDataModule):
         )
 
     def load_tokenized_dataset(self, trait_split: str, split_type: str,
-                               subset: Optional[int] = None) -> Dataset:
+                               subset: Optional[int] = None) -> HFDataset:
         """
         Loads a previously saved tokenized dataset from a Parquet file.
 
@@ -232,7 +275,7 @@ class DataManager(pl.LightningDataModule):
         filename = f"{trait_split}-{split_type}-seed{self.seed}{subset_str}.parquet"
         load_from_path = f"{self.data_path}{self.args.dataset}/tokenized/{filename}"
         df = pd.read_parquet(load_from_path)
-        dataset = Dataset.from_pandas(df)
+        dataset = HFDataset.from_pandas(df)
         return dataset
 
     def prepare_data(self) -> None:
