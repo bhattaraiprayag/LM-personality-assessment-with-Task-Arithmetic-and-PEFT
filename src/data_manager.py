@@ -17,8 +17,7 @@ from datasets import Dataset
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForLanguageModeling
-# from datasets import load_dataset
-from datasets import Dataset as HFDataset  # for clarity
+from datasets import Dataset as HFDataset
 from datasets import load_dataset
 
 from src.utils.helper import print_output
@@ -93,18 +92,18 @@ class DataManager(pl.LightningDataModule):
                     path += f"splits_balanced/{self.args.split}.csv"
             else:
                 path += base
-        elif self.args.dataset == "jigsaw":  # Jigsaw toxicity dataset
-            base = "jigsaw_combined_for_clm.csv"
-            path = f"{self.data_path}{self.args.dataset}/"
-            if self.args.split is not None:
-                if self.args.split == "base":
-                    path += base
-                else:
-                    print(
-                        f"Split: {self.args.split} is not supported for Jigsaw dataset. "
-                        f"Reverting to {base}."
-                    )
-                    path += base
+        # elif self.args.dataset == "jigsaw":  # Jigsaw toxicity dataset
+        #     base = "jigsaw_combined_for_clm.csv"
+        #     path = f"{self.data_path}{self.args.dataset}/"
+        #     if self.args.split is not None:
+        #         if self.args.split == "base":
+        #             path += base
+        #         else:
+        #             print(
+        #                 f"Split: {self.args.split} is not supported for Jigsaw dataset. "
+        #                 f"Reverting to {base}."
+        #             )
+        #             path += base
         elif self.args.dataset == "emotion":
             return "USE_HF_TWEET_EVAL_EMOTION"
         else:
@@ -128,8 +127,8 @@ class DataManager(pl.LightningDataModule):
             ],
             ignore_index=True
         )
-        anger, sadness, joy = 0, 1, 3
-        combined = combined[combined["label"].isin([0, 1, 3])].copy()   # Filter for labels anger(0), joy(1), sadness(3)
+        anger, sadness, joy, optimism = 0, 1, 3, 2
+        # combined = combined[combined["label"].isin([0, 1, 3])].copy()   # Filter for labels anger(0), joy(1), sadness(3)
         combined["text"] = combined["text"].str.replace(r"@ ?user", "", regex=True) # Remove '@user' or '@ user' from text
         combined["text"] = combined["text"].str.replace(r"&amp;", "and", regex=True)    # Replace '&amp;' with 'and'
         combined["text"] = combined["text"].str.replace(r"&lt;", "<", regex=True)   # Replace '&lt;' with '<'
@@ -142,6 +141,8 @@ class DataManager(pl.LightningDataModule):
             filtered = combined[combined["label"] == joy].copy()
         elif self.args.split == "sadness":
             filtered = combined[combined["label"] == sadness].copy()
+        elif self.args.split == "optimism":
+            filtered = combined[combined["label"] == optimism].copy()
         else:
             raise ValueError(f"Split '{self.args.split}' is not supported for the 'emotion' dataset.")
         return filtered
@@ -162,8 +163,8 @@ class DataManager(pl.LightningDataModule):
             dataset = pd.read_csv(path)
         if self.args.dataset == "pandora":
             dataset = dataset.rename(columns={"body": "text"})
-        if self.args.dataset == "jigsaw":
-            dataset = dataset.rename(columns={"comment_text": "text"})
+        # if self.args.dataset == "jigsaw":
+        #     dataset = dataset.rename(columns={"comment_text": "text"})
         print_output(f"Original Dataset: {len(dataset)} rows after loading")
         train_val, test = train_test_split(
             dataset, test_size=0.05, random_state=self.args.seed

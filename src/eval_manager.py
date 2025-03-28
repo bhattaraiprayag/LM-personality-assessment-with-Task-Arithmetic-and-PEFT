@@ -85,14 +85,22 @@ class EvalManager:
                     answer_probs.append(prob)
                     answer_values.append(value)
 
-                # total_prob = sum(answer_probs)
-                # norm_probs = [p / total_prob for p in answer_probs]
+                # # total_prob = sum(answer_probs)
+                # # norm_probs = [p / total_prob for p in answer_probs]
+
+                # temp_df = pd.DataFrame({
+                #     'answer': answer_texts,
+                #     # 'value': answer_values,
+                #     'prob': answer_probs,
+                #     # 'norm_probs': norm_probs,
+                #     'temp': temp
+                # })
+                total_prob = sum(answer_probs)
+                norm_probs = [p / total_prob for p in answer_probs]
 
                 temp_df = pd.DataFrame({
                     'answer': answer_texts,
-                    # 'value': answer_values,
-                    'prob': answer_probs,
-                    # 'norm_probs': norm_probs,
+                    'prob': norm_probs,
                     'temp': temp
                 })
                 result_df = pd.concat([result_df, temp_df], ignore_index=True)

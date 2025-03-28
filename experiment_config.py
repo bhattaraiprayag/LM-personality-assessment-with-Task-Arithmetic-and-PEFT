@@ -4,7 +4,7 @@ Configuration file for the experiment pipeline.
 """
 
 ### Personality Assessment Parameters: OCEAN
-sample_question_bfi10 = "I see myself as someone who"
+sample_question_bfi10 = "I see myself as someone who "
 possible_answers_bfi10 = [
     "is reserved.",
     "is generally trusting.",
@@ -46,21 +46,13 @@ sample_answers_panas_x = [
     "scornful.",
     "disgusted.",
     "loathing.",
-    "guilty.",
-    "ashamed.",
-    "blameworthy.",
     "angry at self.",
     "disgusted with self.",
-    "dissatisfied with self.",
-    "upset.",
-    "distressed.",
     "sad.",
     "blue.",
     "downhearted.",
     "alone.",
     "lonely.",
-    "afraid.",
-    "scared.",
     "happy.",
     "joyful.",
     "delighted.",
@@ -69,18 +61,14 @@ sample_answers_panas_x = [
     "enthusiastic.",
     "lively.",
     "energetic.",
+    "inspired.",
     "proud.",
-    "strong.",
+    "determined.",
     "confident.",
     "bold.",
     "daring.",
     "fearless.",
-    "active.",
-    "alert.",
-    "attentive.",
-    "determined.",
-    "inspired.",
-    "interested.",
+    "strong.",
 ]
 PANAS_X_TRAIT_SUBCLASSES = {
     "ANGER": [
@@ -90,14 +78,8 @@ PANAS_X_TRAIT_SUBCLASSES = {
         "scornful",
         "disgusted",
         "loathing",
-        "guilty",
-        "ashamed",
-        "blameworthy",
         "angry at self",
         "disgusted with self",
-        "dissatisfied with self",
-        "upset",
-        "distressed",
     ],
     "SADNESS": [
         "sad",
@@ -105,10 +87,6 @@ PANAS_X_TRAIT_SUBCLASSES = {
         "downhearted",
         "alone",
         "lonely",
-        "guilty",
-        "ashamed",
-        "afraid",
-        "scared",
     ],
     "JOY": [
         "happy",
@@ -119,21 +97,21 @@ PANAS_X_TRAIT_SUBCLASSES = {
         "enthusiastic",
         "lively",
         "energetic",
+        "inspired",
         "proud",
-        "strong",
+    ],
+    "OPTIMISM": [
+        "determined",
         "confident",
         "bold",
         "daring",
         "fearless",
-        "active",
-        "alert",
-        "attentive",
-        "determined",
-        "inspired",
-        "interested",
+        "strong",
     ],
 }
 
 
-temperatures = [0.6, 0.7, 0.8, 0.9, 1]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
-peft_scales = [0.1, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0]   # [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0] (if using PEFT)
+temperatures = [0.6, 0.9]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
+# temperatures = [0.6, 0.7, 0.8, 0.9, 1]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
+peft_scales = [-12.5, 1.0, 12.5]   # [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0] (if using PEFT)
+# peft_scales = [0.1, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0]   # [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0] (if using PEFT)
