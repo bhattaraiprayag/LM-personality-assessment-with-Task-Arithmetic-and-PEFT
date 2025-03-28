@@ -3,15 +3,15 @@ import subprocess
 import time
 
 # ==== CONFIGURABLE SECTION ====
-# splits = ["anger", "joy", "sadness", "optimism"]
-splits = ["anger", "joy"]
-# seeds = [42, 123, 183, 314, 777]
-seeds = [42]
-batch_sizes = [2]
-grad_steps = [1]
+splits = ["anger", "joy", "sadness", "optimism"]
+# splits = ["anger", "joy"]
+seeds = [183, 1, 2, 3, 4, 5, 6]
+# seeds = [42]
+batch_sizes = [4]
+grad_steps = [4]
 use_peft_options = [None, "lora"]
-# subset_options = [None]  # Optional prototyping
-subset_options = [120]  # Optional prototyping
+subset_options = [None]  # Optional prototyping
+# subset_options = [120]  # Optional prototyping
 # ==============================
 
 def run_experiment(params):
@@ -46,7 +46,7 @@ def main():
         batch_sizes,
         grad_steps,
         use_peft_options,
-        subset_options
+        subset_options,
     ))
 
     print(f"Total combinations to run: {len(combinations)}\n{'=' * 60}")

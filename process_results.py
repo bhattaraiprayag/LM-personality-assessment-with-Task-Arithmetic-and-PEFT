@@ -1,14 +1,12 @@
-import os
 import json
 import math
-import pandas as pd
+import os
 from collections import defaultdict
-from experiment_config import (
-    OCEAN_TRAITS,
-    OCEAN_TRAIT_ANSWER_KEYS,
-    PANAS_X_TRAIT_SUBCLASSES,
-)
 
+import pandas as pd
+
+from experiment_config import (OCEAN_TRAIT_ANSWER_KEYS, OCEAN_TRAITS,
+                               PANAS_X_TRAIT_SUBCLASSES)
 
 # Personality mapping: answer -> (trait_letter, polarity)
 answer_to_trait_polarity = {}

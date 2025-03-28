@@ -4,17 +4,15 @@ Script to initialize and run an experiment, including data preparation, model
 training, and evaluation.
 """
 import os
-from src.utils.pipeline import (
-    setup_experiment,
-    prepare_data,
-    initialize_model,
-    calculate_warmup_steps,
-    perform_evaluation,
-)
+
 import pytorch_lightning as pl
 import torch
-from src.utils.main import Utilities
+
 import experiment_config
+from src.utils.main import Utilities
+from src.utils.pipeline import (calculate_warmup_steps, initialize_model,
+                                perform_evaluation, prepare_data,
+                                setup_experiment)
 
 Utilities.suppress_warnings()
 

@@ -2,6 +2,7 @@ import os
 import tokenize
 from io import StringIO
 
+
 def remove_comments_and_docstrings(source):
     """
     Removes comments, docstrings, and empty lines from the Python source code.
