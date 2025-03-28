@@ -37,26 +37,32 @@ def main() -> None:
     # Utilities.print_trainable_params(model)
     # print(f"===" * 20)
 
-    # Define personality evaluation parameters
-    temperatures = experiment_config.temperatures
-    sample_question = experiment_config.sample_question
-    possible_answers = experiment_config.possible_answers
+    # Define Psychometric Evaluation parameters
+    if args.dataset == "pandora":   # Extract OCEAN traits using BFI-10
+        sample_question = experiment_config.sample_question_bfi10
+        possible_answers = experiment_config.possible_answers_bfi10
+    elif args.dataset == "emotion":  # Extract emotions using PANAS-X
+        sample_question = experiment_config.sample_question_panas_x
+        possible_answers = experiment_config.sample_answers_panas_x
+    else:
+        raise ValueError("Invalid dataset specified. Cannot identify evaluation method.")
     peft_scales = experiment_config.peft_scales
+    temperatures = experiment_config.temperatures
 
-    # Personality Evaluation (Pre-Fine-Tuning)
+    # Psychometric Evaluation (Pre-Finetuning)
     if args.use_peft:   # Using PEFT
-        personality_eval_pre = {}
+        custom_eval_pre = {}
         for scale in peft_scales:
             personality_eval = perform_evaluation(model, tokenizer, temperatures,
                                                   sample_question, possible_answers, args, scale)
-            personality_eval_pre[f"scale_{scale}"] = personality_eval.to_dict(
+            custom_eval_pre[f"scale_{scale}"] = personality_eval.to_dict(
                 orient="records"
             )
     else:   # Base model
         personality_eval = perform_evaluation(model, tokenizer, temperatures,
                                                 sample_question, possible_answers, args)
-        personality_eval_pre = {}
-        personality_eval_pre["scale_None"] = personality_eval.to_dict(orient="records")
+        custom_eval_pre = {}
+        custom_eval_pre["scale_None"] = personality_eval.to_dict(orient="records")
 
     # Fine-Tuning
     model.train()
@@ -81,21 +87,21 @@ def main() -> None:
     model.eval()
     test_results = trainer.test(model, dataloaders=data_manager.test_dataloader())
 
-    # Personality Evaluation (Post-Fine-Tuning)
+    # Psychometric Evaluation (Post-Finetuning)
     if args.use_peft:   # Using PEFT
-        personality_eval_post = {}
+        custom_eval_post = {}
         for scale in peft_scales:
             personality_eval = perform_evaluation(model, tokenizer, temperatures,
                                                   sample_question, possible_answers,
                                                   args, scale)
-            personality_eval_post[f"scale_{scale}"] = personality_eval.to_dict(
+            custom_eval_post[f"scale_{scale}"] = personality_eval.to_dict(
                 orient="records"
             )
     else:   # Base model
         personality_eval = perform_evaluation(model, tokenizer, temperatures,
                                                    sample_question, possible_answers, args)
-        personality_eval_post = {}
-        personality_eval_post["scale_None"] = personality_eval.to_dict(orient="records")
+        custom_eval_post = {}
+        custom_eval_post["scale_None"] = personality_eval.to_dict(orient="records")
 
     # Compile & Save Results
     results = {}
@@ -109,8 +115,8 @@ def main() -> None:
             k: v.item() if isinstance(v, torch.Tensor) else v
             for k, v in test_metrics.items()
         }
-    results["personality_eval_pre"] = personality_eval_pre
-    results["personality_eval_post"] = personality_eval_post
+    results["custom_eval_pre"] = custom_eval_pre
+    results["custom_eval_post"] = custom_eval_post
     Utilities.save_experiment_results(args.output, args.exp_id, results)
     Utilities.update_experiment_metadata(args.output, args.exp_id, results)
 

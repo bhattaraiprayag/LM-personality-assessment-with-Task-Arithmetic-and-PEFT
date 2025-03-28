@@ -3,9 +3,9 @@
 Configuration file for the experiment pipeline.
 """
 
-temperatures = [0.6, 0.7, 0.8, 0.9, 1]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
-sample_question = "I see myself as someone who"
-possible_answers = [
+### Personality Assessment Parameters: OCEAN
+sample_question_bfi10 = "I see myself as someone who"
+possible_answers_bfi10 = [
     "is reserved.",
     "is generally trusting.",
     "tends to be lazy.",
@@ -17,4 +17,123 @@ possible_answers = [
     "gets nervous easily.",
     "has an active imagination.",
 ]
+OCEAN_TRAITS = {
+    "O": "Openness",
+    "C": "Conscientiousness",
+    "E": "Extraversion",
+    "A": "Agreeableness",
+    "N": "Neuroticism",
+}
+OCEAN_TRAIT_ANSWER_KEYS = {
+    "O (+)": "has an active imagination.",
+    "O (-)": "has few artistic interests.",
+    "C (+)": "does a thorough job.",
+    "C (-)": "tends to be lazy.",
+    "E (+)": "is outgoing, sociable.",
+    "E (-)": "is reserved.",
+    "A (+)": "is generally trusting.",
+    "A (-)": "tends to find fault with others.",
+    "N (+)": "gets nervous easily.",
+    "N (-)": "is relaxed, handles stress well.",
+}
+
+### Emotion Assessment Parameters: PANAS-X
+sample_question_panas_x = "Right now, I feel "
+sample_answers_panas_x = [
+    "angry.",
+    "hostile.",
+    "irritable.",
+    "scornful.",
+    "disgusted.",
+    "loathing.",
+    "guilty.",
+    "ashamed.",
+    "blameworthy.",
+    "angry at self.",
+    "disgusted with self.",
+    "dissatisfied with self.",
+    "upset.",
+    "distressed.",
+    "sad.",
+    "blue.",
+    "downhearted.",
+    "alone.",
+    "lonely.",
+    "afraid.",
+    "scared.",
+    "happy.",
+    "joyful.",
+    "delighted.",
+    "cheerful.",
+    "excited.",
+    "enthusiastic.",
+    "lively.",
+    "energetic.",
+    "proud.",
+    "strong.",
+    "confident.",
+    "bold.",
+    "daring.",
+    "fearless.",
+    "active.",
+    "alert.",
+    "attentive.",
+    "determined.",
+    "inspired.",
+    "interested.",
+]
+PANAS_X_TRAIT_SUBCLASSES = {
+    "ANGER": [
+        "angry",
+        "hostile",
+        "irritable",
+        "scornful",
+        "disgusted",
+        "loathing",
+        "guilty",
+        "ashamed",
+        "blameworthy",
+        "angry at self",
+        "disgusted with self",
+        "dissatisfied with self",
+        "upset",
+        "distressed",
+    ],
+    "SADNESS": [
+        "sad",
+        "blue",
+        "downhearted",
+        "alone",
+        "lonely",
+        "guilty",
+        "ashamed",
+        "afraid",
+        "scared",
+    ],
+    "JOY": [
+        "happy",
+        "joyful",
+        "delighted",
+        "cheerful",
+        "excited",
+        "enthusiastic",
+        "lively",
+        "energetic",
+        "proud",
+        "strong",
+        "confident",
+        "bold",
+        "daring",
+        "fearless",
+        "active",
+        "alert",
+        "attentive",
+        "determined",
+        "inspired",
+        "interested",
+    ],
+}
+
+
+temperatures = [0.6, 0.7, 0.8, 0.9, 1]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
 peft_scales = [0.1, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0]   # [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0] (if using PEFT)

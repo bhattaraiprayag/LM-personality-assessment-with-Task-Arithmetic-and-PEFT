@@ -3,26 +3,8 @@ import json
 import math
 import pandas as pd
 from collections import defaultdict
+from experiment_config import OCEAN_TRAITS, OCEAN_TRAIT_ANSWER_KEYS
 
-OCEAN_TRAITS = {
-    "O": "Openness",
-    "C": "Conscientiousness",
-    "E": "Extraversion",
-    "A": "Agreeableness",
-    "N": "Neuroticism",
-}
-OCEAN_TRAIT_ANSWER_KEYS = {
-    "O (+)": "has an active imagination.",
-    "O (-)": "has few artistic interests.",
-    "C (+)": "does a thorough job.",
-    "C (-)": "tends to be lazy.",
-    "E (+)": "is outgoing, sociable.",
-    "E (-)": "is reserved.",
-    "A (+)": "is generally trusting.",
-    "A (-)": "tends to find fault with others.",
-    "N (+)": "gets nervous easily.",
-    "N (-)": "is relaxed, handles stress well.",
-}
 
 answer_to_trait_polarity = {}
 for key, val in OCEAN_TRAIT_ANSWER_KEYS.items():
