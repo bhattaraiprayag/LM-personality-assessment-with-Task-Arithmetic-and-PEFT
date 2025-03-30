@@ -4,14 +4,14 @@ import time
 
 # ==== CONFIGURABLE SECTION ====
 splits = ["anger", "joy", "sadness", "optimism"]
-# splits = ["anger", "joy"]
+# splits = ["anger", "joy"]  # For prototyping
 seeds = [183, 1, 2, 3, 4, 5, 6]
-# seeds = [42]
+# seeds = [42]  # For prototyping
 batch_sizes = [4]
 grad_steps = [4]
 use_peft_options = [None, "lora"]
-subset_options = [None]  # Optional prototyping
-# subset_options = [120]  # Optional prototyping
+subset_options = [None]
+# subset_options = [120]  # For prototyping
 # ==============================
 
 def run_experiment(params):
@@ -23,7 +23,8 @@ def run_experiment(params):
         "--output", "outputs/",
         "--model_name", "gpt2",
         "--seed", str(seed),
-        "--epochs", "1",
+        "--epochs", "3",
+        # "--epochs", "1",  # For prototyping
         "--batch_size", str(batch_size),
         "--grad_steps", str(grad_step),
     ]
