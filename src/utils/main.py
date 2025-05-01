@@ -42,6 +42,19 @@ class Utilities:
     """
 
     @staticmethod
+    def save_json(filepath: str, data: Any) -> None:
+        """
+        Saves data to a JSON file.
+
+        Args:
+            filepath (str): Path to save the JSON file
+            data (Any): Data to save (must be JSON serializable)
+        """
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4)
+
+    @staticmethod
     def parse_arguments() -> ExperimentArguments:
         """
         Parses command-line arguments using HfArgumentParser.
@@ -465,15 +478,15 @@ class Utilities:
         Returns:
             List[Any]: List of callbacks.
         """
-        best_model_checkpoint = ModelCheckpoint(
-            dirpath=output_dir,
-            filename="best-model-{epoch:02d}-{val_loss:.4f}",
-            monitor="val_loss",
-            mode="min",
-            save_top_k=1,
-            save_weights_only=False,
-            save_last=False,
-        )
+        # best_model_checkpoint = ModelCheckpoint(
+        #     dirpath=output_dir,
+        #     filename="best-model-{epoch:02d}-{val_loss:.4f}",
+        #     monitor="val_loss",
+        #     mode="min",
+        #     save_top_k=1,
+        #     save_weights_only=False,
+        #     save_last=False,
+        # )
         last_checkpoint = ModelCheckpoint(
             dirpath=output_dir,
             save_weights_only=False,
@@ -490,7 +503,7 @@ class Utilities:
             annealing_strategy="cos",
         )
         return [
-            best_model_checkpoint,
+            # best_model_checkpoint,
             last_checkpoint,
             early_stopping_callback,
             swa_callback,
@@ -611,5 +624,6 @@ class Utilities:
         callbacks = Utilities.create_callbacks(output_dir_exp, args)
         loggers = [tb_logger, wandb_logger]
         callbacks = list(callbacks)
+        args.exp_out_dir = output_dir_exp
         # Utilities.clear_cuda_memory()        # CAUTION: Does not work; need to fix.
         return args, loggers, callbacks, device_config

@@ -4,7 +4,7 @@ Utility module containing helper functions for the experiment pipeline.
 """
 import math
 from argparse import Namespace
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 import pandas as pd
 import torch
@@ -17,6 +17,7 @@ from src.eval_manager import EvalManager
 from src.model_manager import CLMModel
 from src.peft_manager import PEFTManager
 from src.utils.main import Utilities
+from src.eval_results_manager import EvalResultsManager
 
 
 def setup_experiment() -> tuple:
@@ -109,9 +110,10 @@ def calculate_warmup_steps(args: Namespace, data_manager: DataManager,
 
 def perform_evaluation(model, tokenizer, temperatures,
                        sample_question, possible_answers,
-                       args, scale_peft=None,) -> pd.DataFrame:
+                       args, scale_peft=None) -> pd.DataFrame:
     """
-    Performs personality evaluation of the model using the specified question and answers.
+    Performs evaluation of the model using the specified question and answers.
+    Supports different evaluation types based on the dataset.
 
     Args:
         model: The language model to evaluate.
@@ -125,10 +127,11 @@ def perform_evaluation(model, tokenizer, temperatures,
     Returns:
         pd.DataFrame: DataFrame containing probabilities for each answer.
     """
+    # Handle PEFT scaling if applicable
     if (scale_peft is not None and args.use_peft
         and any(isinstance(module, LoraLayer) for module in model.modules())):
         with rescale_adapter_scale(model, scale_peft):
-            personality_eval_results = EvalManager.extract_answers(
+            eval_results = EvalManager.extract_answers(
                 model,
                 tokenizer,
                 sample_question,
@@ -136,11 +139,12 @@ def perform_evaluation(model, tokenizer, temperatures,
                 temps=temperatures,
             )
     else:
-        personality_eval_results = EvalManager.extract_answers(
+        eval_results = EvalManager.extract_answers(
             model,
             tokenizer,
             sample_question,
             possible_answers,
             temps=temperatures,
         )
-    return personality_eval_results
+    
+    return eval_results
