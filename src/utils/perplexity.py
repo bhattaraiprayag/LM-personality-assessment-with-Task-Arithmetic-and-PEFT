@@ -6,12 +6,8 @@ Module for benchmarking perplexity of a language model.
 import argparse
 import random
 import time
-import os
-import json
-import csv
 import numpy as np
 import torch
-import pandas as pd
 from datasets import load_dataset, concatenate_datasets
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -20,8 +16,6 @@ from transformers import (
     AutoModelForCausalLM,
     DataCollatorForLanguageModeling
 )
-from peft.helpers import rescale_adapter_scale
-from peft.tuners.lora import LoraLayer
 
 BLOCK_SIZE = 1024
 BATCH_SIZE = 8
@@ -115,77 +109,24 @@ def benchmark_perplexity(model, tokenizer, args):
 
     return results
 
-def benchmark_model_perplexity(model, tokenizer, seed=42, is_lora=False, lora_scales=None):
+def run_perplexity_benchmark(model, tokenizer, seed=42):
     """
-    Runs perplexity benchmarks on the model, with support for LoRA models and multiple scales.
+    Run perplexity benchmark on WikiText-103 and Penn Treebank datasets.
     
     Args:
         model: The language model to evaluate
-        tokenizer: Tokenizer for the model
+        tokenizer: The tokenizer for the model
         seed: Random seed for reproducibility
-        is_lora: Boolean indicating if the model is a LoRA model
-        lora_scales: List of scales to evaluate for LoRA models (if is_lora=True)
         
     Returns:
-        dict: Dictionary containing perplexity results. For vanilla models, this is a simple
-              dictionary with dataset names as keys. For LoRA models, it's a nested dictionary
-              with scales as the first level keys and datasets as second level keys.
+        dict: Dictionary containing perplexity scores for each dataset
     """
-    args = argparse.Namespace()
-    args.seed = seed
+    class Args:
+        def __init__(self):
+            self.seed = seed
     
-    if not is_lora:
-        # For vanilla models, just run the benchmark once
-        return benchmark_perplexity(model, tokenizer, args)
-    else:
-        # For LoRA models, run benchmark at each scale
-        results = {}
-        for scale in lora_scales:
-            # Check if the model contains LoRA layers
-            if any(isinstance(module, LoraLayer) for module in model.modules()):
-                with rescale_adapter_scale(model, scale):
-                    scale_results = benchmark_perplexity(model, tokenizer, args)
-                results[str(scale)] = scale_results
-            else:
-                # If no LoRA layers found, run as vanilla model
-                results[str(scale)] = benchmark_perplexity(model, tokenizer, args)
-        return results
-
-def save_perplexity_results(output_dir, experiment_id, results, is_lora=False):
-    """
-    Saves perplexity benchmark results to the appropriate files.
-    
-    Args:
-        output_dir: Base output directory
-        experiment_id: Unique experiment ID
-        results: Perplexity results dict
-        is_lora: Boolean indicating if this is for a LoRA model
-    """
-    exp_dir = os.path.join(output_dir, experiment_id)
-    
-    if not is_lora:
-        # For vanilla models, save directly to the metadata
-        # We'll handle metadata update in the main script
-        return results
-    else:
-        # For LoRA models, save to a separate CSV file
-        csv_file = os.path.join(exp_dir, "perplexity_benchmarks.csv")
-        
-        with open(csv_file, 'w', newline='') as f:
-            fieldnames = ['scale', 'dataset', 'perplexity']
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            
-            for scale, scale_results in results.items():
-                for dataset, perplexity in scale_results.items():
-                    writer.writerow({
-                        'scale': scale,
-                        'dataset': dataset,
-                        'perplexity': perplexity
-                    })
-        
-        # Return path to CSV file
-        return os.path.join(experiment_id, "perplexity_benchmarks.csv")
+    args = Args()
+    return benchmark_perplexity(model, tokenizer, args)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

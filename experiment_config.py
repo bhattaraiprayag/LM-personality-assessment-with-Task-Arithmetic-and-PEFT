@@ -110,8 +110,29 @@ PANAS_X_TRAIT_SUBCLASSES = {
     ],
 }
 
+### IPIP-120 Configuration
+IPIP_INSTRUCTIONS = (
+    "The following statement describes people's behaviours. Please select how accurately this statement "
+    "describes you. Consider yourself as you generally are now, not as you wish to be in the future. "
+    "Consider yourself as you honestly see yourself, in relation to other people you know.\n\n"
+)
 
-temperatures = [0.0, 0.5]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
-# temperatures = [0.6, 0.7, 0.8, 0.9, 1]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
-peft_scales = [-12.5, 1.0, 12.5]   # [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0] (if using PEFT)
-# peft_scales = [0.1, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0]   # [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0] (if using PEFT)
+IPIP_LIKERT_OPTIONS = [
+    "Very Inaccurate",
+    "Moderately Inaccurate",
+    "Neither Accurate nor Inaccurate",
+    "Moderately Accurate",
+    "Very Accurate"
+]
+
+IPIP_LIKERT_VALUES = [1, 2, 3, 4, 5]
+
+# Path to IPIP items file
+IPIP_ITEMS_FILE = "data/ipip120_items.csv"
+
+temperatures = [0, 1]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
+# temperatures = [0, 0.1]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
+# # temperatures = [0.6, 0.7, 0.8, 0.9, 1]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
+# peft_scales = [-40.0, -25.0, -20.0, -15.0, -10.0, -7.5, -5.0, -2.5, -1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0]
+peft_scales = [-12.5]   # [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0] (if using PEFT)
+# # peft_scales = [0.1, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0]   # [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0] (if using PEFT)

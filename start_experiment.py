@@ -13,10 +13,10 @@ import experiment_config
 from src.utils.main import Utilities
 from src.utils.pipeline import (calculate_warmup_steps, initialize_model,
                                 perform_evaluation, prepare_data,
-                                setup_experiment)
+                                setup_experiment, perform_ipip120_evaluation)
 from src.utils.callbacks import MidEpochCheckpointCallback
 from src.eval_results_manager import EvalResultsManager
-from src.utils.perplexity import benchmark_model_perplexity, save_perplexity_results
+from src.utils.perplexity import run_perplexity_benchmark
 
 Utilities.suppress_warnings()
 
@@ -98,48 +98,6 @@ def main() -> None:
     model.eval()
     test_results = trainer.test(model, dataloaders=data_manager.test_dataloader())
 
-    # Run perplexity benchmarks
-    # Extract the training perplexity from the model metrics
-    clm_perplexity = {}
-    if hasattr(model, 'metrics') and 'val_perplexity' in model.metrics:
-        clm_perplexity = {
-            'clm_perplexity': model.metrics['val_perplexity'][-1] if model.metrics['val_perplexity'] else None
-        }
-    
-    # Benchmark perplexity
-    if args.use_peft:  # LoRA model
-        benchmark_results = benchmark_model_perplexity(
-            model=model.model,  # Access the wrapped model
-            tokenizer=tokenizer,
-            seed=args.seed,
-            is_lora=True,
-            lora_scales=peft_scales
-        )
-        # Save results to CSV
-        perplexity_csv_path = save_perplexity_results(
-            output_dir=args.output,
-            experiment_id=args.exp_id,
-            results=benchmark_results,
-            is_lora=True
-        )
-        # Add reference to the perplexity CSV file
-        perplexity_ref = {
-            'perplexity_benchmarks': perplexity_csv_path,
-            **clm_perplexity
-        }
-    else:  # Vanilla model
-        benchmark_results = benchmark_model_perplexity(
-            model=model.model,  # Access the wrapped model
-            tokenizer=tokenizer,
-            seed=args.seed,
-            is_lora=False
-        )
-        # Save directly to results
-        perplexity_ref = {
-            'perplexity_benchmarks': benchmark_results,
-            **clm_perplexity
-        }
-
     # Psychometric Evaluation (Post-Finetuning)
     custom_eval_post = {}
     if args.use_peft:   # Using PEFT
@@ -150,11 +108,34 @@ def main() -> None:
             custom_eval_post[f"scale_{scale}"] = personality_eval.to_dict(
                 orient="records"
             )
+            
+            # Perform IPIP-120 evaluation for pandora dataset
+            if args.dataset == "pandora":
+                ipip_results = perform_ipip120_evaluation(model, tokenizer, args, scale)
+                # Save IPIP-120 results to a separate CSV
+                EvalResultsManager.save_ipip120_eval_results(
+                    output_dir=args.output,
+                    experiment_id=args.exp_id,
+                    phase="post",
+                    results=ipip_results,
+                    scale=scale
+                )
     else:   # Base model
         personality_eval = perform_evaluation(model, tokenizer, temperatures,
                                                    sample_question, possible_answers, args)
         custom_eval_post = {}
         custom_eval_post["scale_None"] = personality_eval.to_dict(orient="records")
+        
+        # Perform IPIP-120 evaluation for pandora dataset
+        if args.dataset == "pandora":
+            ipip_results = perform_ipip120_evaluation(model, tokenizer, args)
+            # Save IPIP-120 results to a separate CSV
+            EvalResultsManager.save_ipip120_eval_results(
+                output_dir=args.output,
+                experiment_id=args.exp_id,
+                phase="post",
+                results=ipip_results
+            )
     
     # Save post-finetuning custom evaluation results to CSV
     EvalResultsManager.save_custom_eval_results(
@@ -166,6 +147,16 @@ def main() -> None:
         answers=possible_answers,
         results=custom_eval_post
     )
+
+    # Run perplexity benchmarking
+    print("Running perplexity benchmarking...")
+    # Ensure tokenizer has pad_token set
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+        
+    # Run perplexity benchmark on the model
+    benchmark_results = run_perplexity_benchmark(model.model, tokenizer, args.seed)
+    print(f"Perplexity benchmark results: {benchmark_results}")
 
     # Save final model
     if args.use_peft:
@@ -188,14 +179,25 @@ def main() -> None:
             for k, v in test_metrics.items()
         }
     
-    # Add perplexity benchmark results
-    results["perplexity"] = perplexity_ref
+    # Add benchmark perplexity results to the metrics
+    results["benchmark_perplexity"] = benchmark_results
     
     # Add references to the custom evaluation files in the metadata
     evals_dir = os.path.join(args.output, args.exp_id, "evals")
     results["custom_eval_files"] = {
         "post": os.path.join(evals_dir, f"custom_eval_{eval_type}_post.csv"),
     }
+    
+    # Add reference to IPIP-120 evaluation files if applicable
+    if args.dataset == "pandora":
+        results["custom_eval_files"]["ipip120_post"] = os.path.join(
+            evals_dir, "custom_eval_personality_ipip120_post.csv"
+        )
+        
+        if args.use_peft:
+            results["custom_eval_files"]["ipip120_mid"] = os.path.join(
+                evals_dir, "custom_eval_personality_ipip120_mid.csv"
+            )
     
     if args.use_peft:
         results["custom_eval_files"]["mid"] = os.path.join(

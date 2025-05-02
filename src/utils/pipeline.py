@@ -18,6 +18,8 @@ from src.model_manager import CLMModel
 from src.peft_manager import PEFTManager
 from src.utils.main import Utilities
 from src.eval_results_manager import EvalResultsManager
+from experiment_config import (IPIP_INSTRUCTIONS, IPIP_LIKERT_OPTIONS, 
+                              IPIP_LIKERT_VALUES, IPIP_ITEMS_FILE)
 
 
 def setup_experiment() -> tuple:
@@ -148,3 +150,41 @@ def perform_evaluation(model, tokenizer, temperatures,
         )
     
     return eval_results
+
+
+def perform_ipip120_evaluation(model, tokenizer, args, scale_peft=None) -> pd.DataFrame:
+    """
+    Performs IPIP-120 personality evaluation.
+    
+    Args:
+        model: The language model to evaluate.
+        tokenizer: Tokenizer corresponding to the model.
+        args: Experiment arguments.
+        scale_peft: Scale for PEFT tuning.
+        
+    Returns:
+        pd.DataFrame: DataFrame containing IPIP-120 evaluation results.
+    """
+    # Handle PEFT scaling if applicable
+    if (scale_peft is not None and args.use_peft
+        and any(isinstance(module, LoraLayer) for module in model.modules())):
+        with rescale_adapter_scale(model, scale_peft):
+            ipip_results = EvalManager.extract_ipip120(
+                model,
+                tokenizer,
+                IPIP_ITEMS_FILE,
+                IPIP_INSTRUCTIONS,
+                IPIP_LIKERT_OPTIONS,
+                IPIP_LIKERT_VALUES
+            )
+    else:
+        ipip_results = EvalManager.extract_ipip120(
+            model,
+            tokenizer,
+            IPIP_ITEMS_FILE,
+            IPIP_INSTRUCTIONS,
+            IPIP_LIKERT_OPTIONS,
+            IPIP_LIKERT_VALUES
+        )
+    
+    return ipip_results

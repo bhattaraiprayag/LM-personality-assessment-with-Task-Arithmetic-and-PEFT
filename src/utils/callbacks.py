@@ -7,7 +7,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback
 
 from src.utils.main import Utilities
-from src.utils.pipeline import perform_evaluation
+from src.utils.pipeline import perform_evaluation, perform_ipip120_evaluation
 from src.eval_results_manager import EvalResultsManager
 
 
@@ -123,6 +123,26 @@ class MidEpochCheckpointCallback(Callback):
             
             # Store results for this scale
             all_results[f"scale_{scale}"] = eval_results.to_dict(orient="records")
+            
+            # Perform IPIP-120 evaluation for pandora dataset
+            if self.args.dataset == "pandora":
+                ipip_results = perform_ipip120_evaluation(
+                    pl_module.model,
+                    self.tokenizer,
+                    self.args,
+                    scale
+                )
+                
+                # Save IPIP-120 results with epoch and step information
+                EvalResultsManager.save_ipip120_eval_results(
+                    output_dir=self.args.output,
+                    experiment_id=self.args.exp_id,
+                    phase="mid",
+                    results=ipip_results,
+                    scale=scale,
+                    epoch=epoch,
+                    step=step
+                )
         
         # Save results using the EvalResultsManager
         EvalResultsManager.save_custom_eval_results(
