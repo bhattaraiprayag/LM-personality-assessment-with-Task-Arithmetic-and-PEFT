@@ -72,7 +72,7 @@ class DataPreprocessor:
             "thinking",
             "perceiving",
         ]
-        self.k_values = k_values or list(range(5, 51, 5))
+        self.k_values = k_values or list(range(5, 16, 5))
         self.comments = None
         self.author_profiles = None
         self.filtered_comments = None
@@ -302,12 +302,8 @@ class DataPreprocessor:
 
 
 if __name__ == "__main__":
-    WORKSPACE_PATH = "/pfs/work7/workspace/scratch/ma_pbhattar-kdd_cup_2023/"
-    CURRENT_FOLDER = (
-        WORKSPACE_PATH
-        + "thesis/LM personality assessment with Task Arithmetic and PEFT/"
-    )
-    DATA_FOLDER = os.path.join(CURRENT_FOLDER, "data/pandora/")
+    CURRENT_FOLDER = os.path.dirname(os.path.abspath(__file__))
+    DATA_FOLDER = os.path.join(CURRENT_FOLDER, "../data/pandora/")
     COMMENTS_FILE = "all_comments_since_2015.csv"
     AUTHOR_PROFILES_FILE = "author_profiles.csv"
     preprocessor = DataPreprocessor(DATA_FOLDER, COMMENTS_FILE, AUTHOR_PROFILES_FILE)

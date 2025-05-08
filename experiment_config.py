@@ -3,20 +3,20 @@
 Configuration file for the experiment pipeline.
 """
 
-### Personality Assessment Parameters: OCEAN
-sample_question_bfi10 = "I see myself as someone who "
-possible_answers_bfi10 = [
-    "is reserved.",
-    "is generally trusting.",
-    "tends to be lazy.",
-    "is relaxed, handles stress well.",
-    "has few artistic interests.",
-    "is outgoing, sociable.",
-    "tends to find fault with others.",
-    "does a thorough job.",
-    "gets nervous easily.",
-    "has an active imagination.",
-]
+# ### Personality Assessment Parameters: OCEAN
+# sample_question_bfi10 = "I see myself as someone who "
+# possible_answers_bfi10 = [
+#     "is reserved.",
+#     "is generally trusting.",
+#     "tends to be lazy.",
+#     "is relaxed, handles stress well.",
+#     "has few artistic interests.",
+#     "is outgoing, sociable.",
+#     "tends to find fault with others.",
+#     "does a thorough job.",
+#     "gets nervous easily.",
+#     "has an active imagination.",
+# ]
 OCEAN_TRAITS = {
     "O": "Openness",
     "C": "Conscientiousness",
@@ -37,39 +37,39 @@ OCEAN_TRAIT_ANSWER_KEYS = {
     "N (-)": "is relaxed, handles stress well.",
 }
 
-### Emotion Assessment Parameters: PANAS-X
-sample_question_panas_x = "Right now, I feel "
-sample_answers_panas_x = [
-    "angry.",
-    "hostile.",
-    "irritable.",
-    "scornful.",
-    "disgusted.",
-    "loathing.",
-    "angry at self.",
-    "disgusted with self.",
-    "sad.",
-    "blue.",
-    "downhearted.",
-    "alone.",
-    "lonely.",
-    "happy.",
-    "joyful.",
-    "delighted.",
-    "cheerful.",
-    "excited.",
-    "enthusiastic.",
-    "lively.",
-    "energetic.",
-    "inspired.",
-    "proud.",
-    "determined.",
-    "confident.",
-    "bold.",
-    "daring.",
-    "fearless.",
-    "strong.",
-]
+# ### Emotion Assessment Parameters: PANAS-X
+# sample_question_panas_x = "Right now, I feel "
+# sample_answers_panas_x = [
+#     "angry.",
+#     "hostile.",
+#     "irritable.",
+#     "scornful.",
+#     "disgusted.",
+#     "loathing.",
+#     "angry at self.",
+#     "disgusted with self.",
+#     "sad.",
+#     "blue.",
+#     "downhearted.",
+#     "alone.",
+#     "lonely.",
+#     "happy.",
+#     "joyful.",
+#     "delighted.",
+#     "cheerful.",
+#     "excited.",
+#     "enthusiastic.",
+#     "lively.",
+#     "energetic.",
+#     "inspired.",
+#     "proud.",
+#     "determined.",
+#     "confident.",
+#     "bold.",
+#     "daring.",
+#     "fearless.",
+#     "strong.",
+# ]
 PANAS_X_TRAIT_SUBCLASSES = {
     "ANGER": [
         "angry",
@@ -110,29 +110,145 @@ PANAS_X_TRAIT_SUBCLASSES = {
     ],
 }
 
-### IPIP-120 Configuration
-IPIP_INSTRUCTIONS = (
-    "The following statement describes people's behaviours. Please select how accurately this statement "
-    "describes you. Consider yourself as you generally are now, not as you wish to be in the future. "
-    "Consider yourself as you honestly see yourself, in relation to other people you know.\n\n"
-)
+# ### IPIP-120 Configuration
+# IPIP_LIKERT_OPTIONS = [
+#     "Very Inaccurate",
+#     "Moderately Inaccurate",
+#     "Neither Accurate nor Inaccurate",
+#     "Moderately Accurate",
+#     "Very Accurate"
+# ]
+# CORE_INSTRUCTIONS = (
+#     "The following statement describes people's behaviours. Please select how accurately this statement "
+#     "describes you. Consider yourself as you generally are now, not as you wish to be in the future. "
+#     "Consider yourself as you honestly see yourself, in relation to other people you know.\n\n Always answer based on this likert scale:\n\n"
+# )
+# IPIP_INSTRUCTIONS = (
+#     CORE_INSTRUCTIONS
+#     + "\n".join([f"{i+1}. {option}" for i, option in enumerate(IPIP_LIKERT_OPTIONS)])
+#     + "\n\n Statement: I "
+# )
 
-IPIP_LIKERT_OPTIONS = [
-    "Very Inaccurate",
-    "Moderately Inaccurate",
-    "Neither Accurate nor Inaccurate",
-    "Moderately Accurate",
-    "Very Accurate"
-]
+# IPIP_LIKERT_VALUES = [1, 2, 3, 4, 5]
 
-IPIP_LIKERT_VALUES = [1, 2, 3, 4, 5]
+# # Path to IPIP items file
+# IPIP_ITEMS_FILE = "data/ipip120_items.csv"
 
-# Path to IPIP items file
-IPIP_ITEMS_FILE = "data/ipip120_items.csv"
-
-temperatures = [0, 1]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
+temperatures = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
 # temperatures = [0, 0.1]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
 # # temperatures = [0.6, 0.7, 0.8, 0.9, 1]  # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1
-# peft_scales = [-40.0, -25.0, -20.0, -15.0, -10.0, -7.5, -5.0, -2.5, -1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0]
+# peft_scales = [-20.0, -15.0, -12.5, -10.0, -7.5, -5.0, -2.5, -1.0, -0.5, -0.1, 0.0, 0.1, 0.5, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0]
 peft_scales = [-12.5]   # [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0] (if using PEFT)
-# # peft_scales = [0.1, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0]   # [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0] (if using PEFT)
+# # # peft_scales = [0.1, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0]   # [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 40.0, 50.0, 75.0, 100.0, 150.0, 200.0] (if using PEFT)
+
+# ──────────────────────────────────────────────────────────────
+# NEW CONFIGURATION for improved inventory evaluations
+# ──────────────────────────────────────────────────────────────
+from pathlib import Path
+
+# ──────────────────────────────────────────────────────────────
+# BFI‑10
+# ──────────────────────────────────────────────────────────────
+BFI10_ITEMS = [
+    "is reserved.",
+    "is generally trusting.",
+    "tends to be lazy.",
+    "is relaxed, handles stress well.",
+    "has few artistic interests.",
+    "is outgoing, sociable.",
+    "tends to find fault with others.",
+    "does a thorough job.",
+    "gets nervous easily.",
+    "has an active imagination.",
+]
+BFI10_LIKERT = [
+    "Disagree strongly",
+    "Disagree a little",
+    "Neither agree nor disagree",
+    "Agree a little",
+    "Agree strongly",
+]
+
+# ──────────────────────────────────────────────────────────────
+# PANAS‑X
+# ──────────────────────────────────────────────────────────────
+PANASX_ITEMS = [
+    "angry.",
+    "hostile.",
+    "irritable.",
+    "scornful.",
+    "disgusted.",
+    "loathing.",
+    "angry at self.",
+    "disgusted with self.",
+    "sad.",
+    "blue.",
+    "downhearted.",
+    "alone.",
+    "lonely.",
+    "happy.",
+    "joyful.",
+    "delighted.",
+    "cheerful.",
+    "excited.",
+    "enthusiastic.",
+    "lively.",
+    "energetic.",
+    "inspired.",
+    "proud.",
+    "determined.",
+    "confident.",
+    "bold.",
+    "daring.",
+    "fearless.",
+    "strong.",
+]
+PANASX_LIKERT = [
+    "Very slightly or not at all",
+    "A little",
+    "Moderately",
+    "Quite a bit",
+    "Extremely",
+]
+
+# ──────────────────────────────────────────────────────────────
+# IPIP‑120
+# ──────────────────────────────────────────────────────────────
+IPIP_ITEMS_FILE = Path("data/ipip120_items.csv")  # relative to project root
+IPIP_LIKERT = [
+    "Very inaccurate",
+    "Moderately inaccurate",
+    "Neither accurate nor inaccurate",
+    "Moderately accurate",
+    "Very accurate",
+]
+
+# ──────────────────────────────────────────────────────────────
+# Unified catalogue
+# ──────────────────────────────────────────────────────────────
+INVENTORIES: dict[str, dict] = {
+    "BFI10": {
+        "question_stem": "How well does the following statement describe you?",
+        "statement_template": "STATEMENT: I see myself as someone who {item}",
+        "anchors": BFI10_LIKERT,
+        "items": BFI10_ITEMS,
+    },
+    "PANASX": {
+        "question_stem": "Indicate to what extent this statement describes how you feel.",
+        "statement_template": "STATEMENT: Right now, I feel {item}",
+        "anchors": PANASX_LIKERT,
+        "items": PANASX_ITEMS,
+    },
+    "IPIP120": {
+        "question_stem": (
+            "The following statement describes people's behaviours. Please select how accurately "
+            "this statement describes you.\n\nDescribe yourself as you generally are now, not as you "
+            "wish to be in the future. Describe yourself as you honestly see yourself, in relation "
+            "to other people you know of the same sex and roughly the same age."
+        ),
+        "statement_template": "STATEMENT: I {item}",
+        "anchors": IPIP_LIKERT,
+        # so we don't keep 120 strings in memory when not needed:
+        "items_file": IPIP_ITEMS_FILE,
+    },
+}

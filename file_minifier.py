@@ -35,25 +35,52 @@ def remove_comments_and_docstrings(source):
     out = '\n'.join(line for line in out.splitlines() if line.strip())
     return out
 
-def minify_codebase(root_dir, output_file):
+
+def minify_codebase(root_dir, output_file, exclude_files=None, preserve_files=None):
     """
-    Traverses the directory structure from the given root_dir, collects all .py files,
-    processes them to remove comments and docstrings, and writes the minified content
-    into a single file.
+    Processes .py files under root_dir, minifying most but fully preserving
+    specified files. Skips excluded files.
     """
-    with open(output_file, 'w') as outfile:
+    exclude_files = set(exclude_files or [])
+    preserve_files = set(preserve_files or [])
+
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+    with open(output_file, 'w', encoding='utf-8') as outfile:
         for subdir, _, files in os.walk(root_dir):
             for file in files:
-                if file.endswith('.py') and file != os.path.basename(__file__):
-                    file_path = os.path.join(subdir, file)
-                    with open(file_path, 'r', encoding='utf-8') as infile:
-                        source_code = infile.read()
-                        minified_code = remove_comments_and_docstrings(source_code)
-                        outfile.write(f"# FILE: {file_path}\n")
-                        outfile.write(minified_code + "\n\n")
+                if not file.endswith('.py'):
+                    continue
+
+                rel_path = os.path.relpath(os.path.join(subdir, file), root_dir)
+                if file in exclude_files or rel_path in exclude_files:
+                    continue
+                file_path = os.path.join(subdir, file)
+
+                with open(file_path, 'r', encoding='utf-8') as infile:
+                    source_code = infile.read()
+                    if file in preserve_files or rel_path in preserve_files:
+                        processed_code = source_code  # Preserve fully
+                    else:
+                        processed_code = remove_comments_and_docstrings(source_code)
+
+                    outfile.write(f"# FILE: {file_path}\n")
+                    outfile.write(processed_code + "\n\n")
+
 
 if __name__ == "__main__":
-    root_directory = "."  # Root directory to start scanning
-    output_filename = "./outputs/min-codebase.txt"  # Output file for the minified code
-    minify_codebase(root_directory, output_filename)
+    root_directory = "."  # Start scanning here
+    output_filename = "./outputs/min-codebase.txt"
+
+    # File-level filters (filename or relative path from root)
+    excluded_files = {"file_minifier.py"}
+    # preserved_files = {"important_script.py", "nested_folder/special_case.py"}
+    preserved_files = {"experiment_config.py"}
+
+    minify_codebase(
+        root_directory,
+        output_filename,
+        exclude_files=excluded_files,
+        preserve_files=preserved_files
+    )
     print(f"Minified codebase saved to {output_filename}")

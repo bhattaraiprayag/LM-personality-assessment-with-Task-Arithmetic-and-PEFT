@@ -122,7 +122,8 @@ class EvalManager:
             # Create a matrix of prompts: items x options
             for item_idx, (_, row) in enumerate(batch_df.iterrows()):
                 phrase = row["phrase"]
-                context = f"{instructions}{phrase}\nAnswer:"
+                phrase = phrase.lower()
+                context = f"{instructions}{phrase}\n\nYour likert answer choice:"
                 
                 for option_idx, option in enumerate(likert_options):
                     all_prompts.append(context + " " + option)
@@ -152,35 +153,65 @@ class EvalManager:
                 context_lengths.append(context_len)
                 option_lengths.append(len(tok.encode(option_text, add_special_tokens=False)))
             
-            # Batch encode all prompts
-            encodings = tok(all_prompt_texts, return_tensors="pt", padding=True).to(device)
+            # # Batch encode all prompts
+            # encodings = tok(all_prompt_texts, return_tensors="pt", padding=True).to(device)
             
-            # Get model outputs for the whole batch
-            with torch.no_grad():
-                outputs = model(**encodings)
-                logits = outputs.logits
+            # # Get model outputs for the whole batch
+            # with torch.no_grad():
+            #     outputs = model(**encodings)
+            #     logits = outputs.logits
+            MICRO = 16
+            option_scores = torch.empty(len(all_prompts), device=device)
+
+            for mb_start in range(0, len(all_prompts), MICRO):
+                mb_end = min(mb_start + MICRO, len(all_prompts))
+                encodings = tok(
+                    all_prompt_texts[mb_start:mb_end],
+                    return_tensors="pt",
+                    padding=True,
+                ).to(device)
+
+                with torch.no_grad(), torch.cuda.amp.autocast():
+                    logits = model(**encodings).logits
                 
                 # Calculate log probabilities
                 log_probs = torch.log_softmax(logits, dim=-1)
                 token_log_probs = log_probs.gather(2, encodings.input_ids.unsqueeze(-1)).squeeze(-1)
                 
-                # Create masks to select only the option tokens
-                seq_len = encodings.input_ids.size(1)
-                position_indices = torch.arange(seq_len, device=device).unsqueeze(0).expand(len(all_prompts), -1)
+                mb_ctx = context_lengths[mb_start:mb_end]
+                mb_olen = option_lengths[mb_start:mb_end]
+                mb_masks = torch.zeros_like(encodings.input_ids, dtype=torch.bool)
+
+                for j, ctx_len in enumerate(mb_ctx):
+                    mb_masks[j, ctx_len:ctx_len + mb_olen[j]] = True
+
+                masked = token_log_probs * mb_masks
+                sums = masked.sum(1)
+                counts = mb_masks.sum(1)
+                mb_scores = torch.where(counts > 0, sums / counts, torch.zeros_like(sums))
+                option_scores[mb_start:mb_end] = mb_scores
+
+                # # Create masks to select only the option tokens
+                # seq_len = encodings.input_ids.size(1)
+                # position_indices = torch.arange(seq_len, device=device).unsqueeze(0).expand(len(all_prompts), -1)
                 
-                # Create a mask for each prompt that selects only the option tokens
-                option_masks = torch.zeros_like(encodings.input_ids, dtype=torch.bool)
-                for i, ctx_len in enumerate(context_lengths):
-                    option_masks[i, ctx_len:ctx_len + option_lengths[i]] = True
+                # # Create a mask for each prompt that selects only the option tokens
+                # option_masks = torch.zeros_like(encodings.input_ids, dtype=torch.bool)
+                # for i, ctx_len in enumerate(context_lengths):
+                #     option_masks[i, ctx_len:ctx_len + option_lengths[i]] = True
                 
-                # Apply the masks to get log probs for only the option tokens
-                masked_log_probs = token_log_probs * option_masks
+                # # Apply the masks to get log probs for only the option tokens
+                # masked_log_probs = token_log_probs * option_masks
                 
-                # Calculate mean log prob for each option (where mask is True)
-                option_scores = torch.zeros(len(all_prompts), device=device)
-                for i in range(len(all_prompts)):
-                    if option_masks[i].sum() > 0:  # Avoid division by zero
-                        option_scores[i] = masked_log_probs[i].sum() / option_masks[i].sum()
+                # # Calculate mean log prob for each option (where mask is True)
+                # # option_scores = torch.zeros(len(all_prompts), device=device)
+                # # for i in range(len(all_prompts)):
+                # for i in range(mb_start, mb_end):
+                #     if option_masks[i].sum() > 0:  # Avoid division by zero
+                #         option_scores[i] = masked_log_probs[i].sum() / option_masks[i].sum()
+
+                del logits, log_probs, token_log_probs, masked, mb_masks
+                torch.cuda.empty_cache()
             
             # Reshape scores to [num_items, num_options]
             num_items_in_batch = batch_end - batch_start

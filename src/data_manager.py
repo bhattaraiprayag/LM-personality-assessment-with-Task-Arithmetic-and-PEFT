@@ -166,6 +166,8 @@ class DataManager(pl.LightningDataModule):
         # if self.args.dataset == "jigsaw":
         #     dataset = dataset.rename(columns={"comment_text": "text"})
         print_output(f"Original Dataset: {len(dataset)} rows after loading")
+
+        dataset = dataset.dropna(subset=["text"])
         train_val, test = train_test_split(
             dataset, test_size=0.05, random_state=self.args.seed
         )
@@ -207,8 +209,16 @@ class DataManager(pl.LightningDataModule):
         """
 
         def tokenize_seqs(examples: Dict[str, List[str]]) -> Dict[str, Any]:
+            bos_token = self.tokenizer.bos_token or "<|startoftext|>"
+            eos_token = self.tokenizer.eos_token or "<|endoftext|>"
+            # texts_with_special_tokens = [
+            #     self.tokenizer.bos_token + text + self.tokenizer.eos_token
+            #     for text in examples["text"]
+            # ]
             texts_with_special_tokens = [
-                self.tokenizer.bos_token + text + self.tokenizer.eos_token
+                # f"{bos_token} {text} {eos_token}" for text in examples["text"]
+                # bos_token + text + eos_token
+                bos_token + (str(text) if text is not None else "") + eos_token
                 for text in examples["text"]
             ]
             tokenized_output = self.tokenizer(
