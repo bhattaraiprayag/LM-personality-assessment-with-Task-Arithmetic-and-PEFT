@@ -1,18 +1,70 @@
+# src/eval_results_manager.py
 """
 Module for managing and storing evaluation results in a structured format.
 """
 import os
 import json
 import pandas as pd
+
 from typing import List, Dict, Any, Optional, Union
 
 
+MASTER_FILES = {
+    "mid": "combined_mid_epoch_results.csv",
+    "post": "combined_post_epoch_results.csv",
+}
+
 class EvalResultsManager:
-    """
-    Class for handling the storage and retrieval of evaluation results,
-    separating them from the main experiment metadata.
-    """
-    
+    """Tiny writer that keeps two global CSVs *and* a per‑run copy."""
+
+    COLS = [
+        "exp_id",
+        "phase",
+        "use_peft",
+        "lora_scale",
+        "epoch",
+        "step",
+        "inventory",
+        "item",
+        "likert_in_prompt",
+        1, 2, 3, 4, 5,
+    ]
+
+    @staticmethod
+    def append_rows(
+        *,
+        df: pd.DataFrame,
+        phase: str,
+        inventory: str,
+        exp_id: str,
+        output_dir: str,
+        use_peft: str,
+        lora_scale: Union[str, float],
+        epoch: Optional[int] = None,
+        step: Optional[int] = None,
+    ) -> None:
+        df = df.copy()
+        df.insert(0, "inventory", inventory)
+        df.insert(0, "lora_scale", lora_scale)
+        df.insert(0, "use_peft", use_peft)
+        df.insert(0, "phase", phase)
+        df.insert(0, "exp_id", exp_id)
+        df["epoch"] = epoch
+        df["step"] = step
+        df = df[EvalResultsManager.COLS]
+
+        # 1. append to master CSV (create if absent)
+        master_path = os.path.join(output_dir, MASTER_FILES[phase])
+        header = not os.path.exists(master_path)
+        df.to_csv(master_path, mode="a", header=header, index=False)
+
+        # 2. copy into experiment‑local evals/
+        local_dir = os.path.join(output_dir, exp_id, "evals")
+        os.makedirs(local_dir, exist_ok=True)
+        local_path = os.path.join(local_dir, f"{phase}_epoch_results.csv")
+        header = not os.path.exists(local_path)
+        df.to_csv(local_path, mode="a", header=header, index=False)
+
     @staticmethod
     def save_custom_eval_results(
         output_dir: str,
@@ -171,59 +223,3 @@ class EvalResultsManager:
             return "emotion"
         else:
             return "unknown"
-
-    @staticmethod
-    def save_ipip120_eval_results(
-        output_dir: str,
-        experiment_id: str,
-        phase: str,
-        results: pd.DataFrame,
-        scale: Optional[Union[float, str]] = None,
-        epoch: Optional[int] = None,
-        step: Optional[int] = None,
-    ) -> str:
-        """
-        Save IPIP-120 evaluation results to a CSV file.
-        Results are consolidated in a single file per phase (mid or post).
-        
-        Args:
-            output_dir: Base output directory
-            experiment_id: Unique experiment ID
-            phase: Evaluation phase (pre, post, mid)
-            results: DataFrame with IPIP evaluation results
-            scale: PEFT scale if applicable
-            epoch: Current epoch (for mid-phase evaluations)
-            step: Current step (for mid-phase evaluations)
-            
-        Returns:
-            str: Path to the saved CSV file
-        """
-        # Create the evals directory if it doesn't exist
-        evals_dir = os.path.join(output_dir, experiment_id, "evals")
-        os.makedirs(evals_dir, exist_ok=True)
-        
-        # Use simplified phase name for filename (mid or post)
-        base_phase = "mid" if phase.startswith("mid") else phase
-        filename = f"custom_eval_personality_ipip120_{base_phase}.csv"
-        filepath = os.path.join(evals_dir, filename)
-        
-        # Add experiment metadata to results
-        results_copy = results.copy()
-        results_copy["experiment_id"] = experiment_id
-        results_copy["phase"] = phase  # Keep the original detailed phase
-        if scale is not None:
-            results_copy["scale"] = scale
-        if epoch is not None:
-            results_copy["epoch"] = epoch
-        if step is not None:
-            results_copy["step"] = step
-        
-        # Append to existing file if it exists, otherwise create new
-        if os.path.exists(filepath):
-            existing_df = pd.read_csv(filepath)
-            combined_df = pd.concat([existing_df, results_copy], ignore_index=True)
-            combined_df.to_csv(filepath, index=False)
-        else:
-            results_copy.to_csv(filepath, index=False)
-        
-        return filepath

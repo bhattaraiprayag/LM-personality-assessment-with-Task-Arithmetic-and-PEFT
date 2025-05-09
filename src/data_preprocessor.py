@@ -6,11 +6,11 @@ filtering authors, and creating balanced splits.
 import os
 import re
 import time
-from typing import List, Optional
-
 import ftfy
 import numpy as np
 import pandas as pd
+
+from typing import List, Optional
 from tqdm import tqdm
 
 

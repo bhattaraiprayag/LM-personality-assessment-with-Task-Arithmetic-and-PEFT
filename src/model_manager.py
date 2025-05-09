@@ -3,11 +3,11 @@
 Module defining the CLMModel class for language model training
 using PyTorch Lightning.
 """
-from argparse import Namespace
-from typing import Dict, List
-
 import pytorch_lightning as pl
 import torch
+
+from argparse import Namespace
+from typing import Dict, List
 from torch import nn
 from transformers import AdamW
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions

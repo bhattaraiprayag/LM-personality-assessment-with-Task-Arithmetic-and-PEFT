@@ -92,6 +92,7 @@ runs/
 
 # Dataset files (to prevent uploading large datasets)
 data/
+!data/ipip120_items.csv
 dependencies/
 
 # # Results or outputs from fine-tuning / PEFT experiments

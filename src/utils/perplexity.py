@@ -2,12 +2,12 @@
 """
 Module for benchmarking perplexity of a language model.
 """
-
 import argparse
 import random
 import time
 import numpy as np
 import torch
+
 from datasets import load_dataset, concatenate_datasets
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -16,9 +16,11 @@ from transformers import (
     AutoModelForCausalLM,
     DataCollatorForLanguageModeling
 )
+from pytorch_lightning.utilities import rank_zero_only
 
-BLOCK_SIZE = 1024
-BATCH_SIZE = 8
+
+BLOCK_SIZE = 512
+BATCH_SIZE = 4
 
 def set_seed(seed):
     random.seed(seed)
@@ -109,6 +111,7 @@ def benchmark_perplexity(model, tokenizer, args):
 
     return results
 
+@rank_zero_only
 def run_perplexity_benchmark(model, tokenizer, seed=42):
     """
     Run perplexity benchmark on WikiText-103 and Penn Treebank datasets.

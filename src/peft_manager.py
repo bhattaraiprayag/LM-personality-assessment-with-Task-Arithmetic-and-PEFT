@@ -47,8 +47,6 @@ class PEFTManager:
             ValueError: If the specified PEFT method is not supported.
         """
         if peft_type == "lora":
-            # target_modules = ["attn.c_attn", "attn.c_proj"]
-            # target_modules = ["c_attn", "c_proj", "c_fc"]
             target_modules = "all-linear"     # options: "all-linear", "all-attention" or ["attn.c_attn", "attn.c_proj"]
             task_type = "CAUSAL_LM"
             return LoraConfig(

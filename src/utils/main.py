@@ -79,7 +79,7 @@ class Utilities:
             seed (int): Seed value.
         """
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = (
-            ":4096:8"  # VITAL: This has to come before torch.backends.cudnn.deterministic = True
+            ":4096:8"  #  CAUTION: This has to come before torch.backends.cudnn.deterministic = True
         )
         random.seed(seed)
         np.random.seed(seed)
@@ -353,7 +353,6 @@ class Utilities:
                 except RuntimeError:
                     batch_size //= 2
                     break
-        print_output(f"Maximum batch size: {batch_size}")
         return batch_size
 
     @staticmethod
@@ -380,7 +379,7 @@ class Utilities:
             devices=args.devices if args.devices is not None else 1,
             precision=16,
             gradient_clip_val=0.5,
-            # deterministic=True        # Doesn't work with Tuner for some reason
+            # deterministic=True        # CAUTION: Doesn't work with Tuner for some reason
         )
         tuner = Tuner(trainer)
         try:
@@ -420,8 +419,7 @@ class Utilities:
         if os.path.exists(dotenv_path):
             load_dotenv(dotenv_path)
             if os.getenv("WANDB_API_TOKEN"):
-                print("\n")
-                # print("WandB API token loaded successfully.")
+                print("WandB API token loaded successfully.")
             else:
                 print("WandB API token not found.")
         else:
@@ -487,12 +485,12 @@ class Utilities:
         #     save_weights_only=False,
         #     save_last=False,
         # )
-        last_checkpoint = ModelCheckpoint(
-            dirpath=output_dir,
-            save_weights_only=False,
-            save_last=True,
-            save_top_k=0,
-        )
+        # last_checkpoint = ModelCheckpoint(
+        #     dirpath=output_dir,
+        #     save_weights_only=False,
+        #     save_last=True,
+        #     save_top_k=0,
+        # )
         early_stopping_callback = EarlyStopping(
             monitor="val_loss", patience=3, mode="min"
         )
@@ -504,7 +502,7 @@ class Utilities:
         )
         return [
             # best_model_checkpoint,
-            last_checkpoint,
+            # last_checkpoint,
             early_stopping_callback,
             swa_callback,
         ]

@@ -74,8 +74,9 @@ if __name__ == "__main__":
 
     # File-level filters (filename or relative path from root)
     excluded_files = {"file_minifier.py"}
-    # preserved_files = {"important_script.py", "nested_folder/special_case.py"}
-    preserved_files = {"experiment_config.py"}
+    # # preserved_files = {"important_script.py", "nested_folder/special_case.py"}
+    # preserved_files = {"experiment_config.py"}
+    preserved_files = {}
 
     minify_codebase(
         root_directory,
