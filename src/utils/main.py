@@ -463,6 +463,7 @@ class Utilities:
 
         log_wandb_hparams()
         return tb_logger, wandb_logger
+        # return wandb_logger
 
     @staticmethod
     def create_callbacks(output_dir: str, args: ExperimentArguments) -> List[Any]:

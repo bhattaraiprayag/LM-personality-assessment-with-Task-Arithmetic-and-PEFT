@@ -196,13 +196,7 @@ class DataManager(pl.LightningDataModule):
         def tokenize_seqs(examples: Dict[str, List[str]]) -> Dict[str, Any]:
             bos_token = self.tokenizer.bos_token or "<|startoftext|>"
             eos_token = self.tokenizer.eos_token or "<|endoftext|>"
-            # texts_with_special_tokens = [
-            #     self.tokenizer.bos_token + text + self.tokenizer.eos_token
-            #     for text in examples["text"]
-            # ]
             texts_with_special_tokens = [
-                # f"{bos_token} {text} {eos_token}" for text in examples["text"]
-                # bos_token + text + eos_token
                 bos_token + (str(text) if text is not None else "") + eos_token
                 for text in examples["text"]
             ]

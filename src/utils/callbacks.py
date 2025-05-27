@@ -69,7 +69,7 @@ class MidEpochCheckpointCallback(Callback):
 
         if current_step in self.save_intervals and current_step not in self.saved_steps:
             self.saved_steps.add(current_step)            
-            self._save_lora_weights(pl_module, current_epoch, current_step)
+            # self._save_lora_weights(pl_module, current_epoch, current_step)   # Disabled saving 5 LoRA checkpoints for now
             self._perform_mid_epoch_eval(pl_module, current_epoch, current_step)
     
     def _save_lora_weights(

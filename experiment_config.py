@@ -5,6 +5,16 @@ Configuration file for the experiment pipeline.
 from pathlib import Path
 
 
+# OCEAN Traits
+OCEAN_TRAITS = [
+    "Openness",
+    "Conscientiousness",
+    "Extraversion",
+    "Agreeableness",
+    "Neuroticism",
+]
+
+
 # BFI-10
 BFI10_ITEMS = [
     "is reserved.",
@@ -25,21 +35,61 @@ BFI10_LIKERT = [
     "Agree a little",
     "Agree strongly",
 ]
-BFI10_TRAIT_POLARITY = {
-    "O (+)": "has an active imagination.",
-    "O (-)": "has few artistic interests.",
-    "C (+)": "does a thorough job.",
-    "C (-)": "tends to be lazy.",
-    "E (+)": "is outgoing, sociable.",
-    "E (-)": "is reserved.",
-    "A (+)": "is generally trusting.",
-    "A (-)": "tends to find fault with others.",
-    "N (+)": "gets nervous easily.",
-    "N (-)": "is relaxed, handles stress well.",
-}
+BFI10_ITEMS_TRAIT_POLARITY = [
+    {
+        "item": "has an active imagination.",
+        "trait": "Openness",
+        "polarity": "positive",
+    },
+    {
+        "item": "has few artistic interests.",
+        "trait": "Openness",
+        "polarity": "negative",
+    },
+    {
+        "item": "does a thorough job.",
+        "trait": "Conscientiousness",
+        "polarity": "positive",
+    },
+    {
+        "item": "tends to be lazy.",
+        "trait": "Conscientiousness",
+        "polarity": "negative",
+    },
+    {
+        "item": "is outgoing, sociable.",
+        "trait": "Extraversion",
+        "polarity": "positive",
+    },
+    {
+        "item": "is reserved.",
+        "trait": "Extraversion",
+        "polarity": "negative",
+    },
+    {
+        "item": "is generally trusting.",
+        "trait": "Agreeableness",
+        "polarity": "positive",
+    },
+    {
+        "item": "tends to find fault with others.",
+        "trait": "Agreeableness",
+        "polarity": "negative",
+    },
+    {
+        "item": "gets nervous easily.",
+        "trait": "Neuroticism",
+        "polarity": "positive",
+    },
+    {
+        "item": "is relaxed, handles stress well.",
+        "trait": "Neuroticism",
+        "polarity": "negative",
+    }
+]
 
 
-# PANAS‑X
+### PANAS‑X
 PANASX_ITEMS = [
     "angry.",
     "hostile.",
@@ -119,7 +169,7 @@ PANAS_X_TRAIT_SUBCLASSES = {
 }
 
 
-# IPIP‑120
+### IPIP‑120
 IPIP_ITEMS_FILE = Path("data/ipip120_items.csv")
 IPIP_LIKERT = [
     "Very inaccurate",
@@ -130,7 +180,7 @@ IPIP_LIKERT = [
 ]
 
 
-# MAIN INVENTORY CONFIG
+### MAIN INVENTORY CONFIG
 INVENTORIES: dict[str, dict] = {
     "BFI10": {
         "question_stem": "How well does the following statement describe you?",
@@ -158,7 +208,7 @@ INVENTORIES: dict[str, dict] = {
 }
 
 
-# EXPERIMENT CONFIGS
+### EXPERIMENT CONFIGS
 temperatures = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 # temperatures = [0, 0.1]
 peft_scales = [-25.0, -20.0, -15.0, -12.5, -10.0, -7.5, -5.0, -2.5, -1.0, -0.5, -0.1, 0.0, 0.1, 0.5, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0]
