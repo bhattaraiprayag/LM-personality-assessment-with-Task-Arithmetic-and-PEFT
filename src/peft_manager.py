@@ -1,42 +1,53 @@
 # src/peft_manager.py
-
 """
-PEFT (Parameter-Efficient Fine-Tuning) management module.
+Module for applying Parameter-Efficient Fine-Tuning (PEFT) methods
+to models.
 """
-
 from peft import LoraConfig, get_peft_model
 
 
 class PEFTManager:
     """
-    Manages the application of PEFT techniques to models.
+    Class providing static methods to apply PEFT configurations to models.
     """
 
     @staticmethod
-    def apply_peft(model, use_peft: str, scale_peft: float = 1.0):
+    def apply_peft(model, use_peft: str) -> object:
         """
-        Apply the specified PEFT method to the model with optional scaling.
+        Applies the specified PEFT method to the given model.
+
+        Args:
+            model: The model to which PEFT will be applied.
+            use_peft (str): The PEFT method to use (e.g., 'lora').
+
+        Returns:
+            Model with PEFT applied.
+
+        Raises:
+            ValueError: If the specified PEFT method is not supported.
         """
         if use_peft == "lora":
             config = PEFTManager.get_peft_config(use_peft)
             lora_model = get_peft_model(model, config)
-            if scale_peft != 1.0 and scale_peft > 0:
-                for name, param in lora_model.named_parameters():
-                    if "lora" in name:
-                        param.data *= scale_peft
             return lora_model
-        if use_peft in ["prompt-tuning", "adapter-tuning"]:
-            # TO DO: Implement when available
-            return model
         raise ValueError(f"PEFT method '{use_peft}' is not supported.")
 
     @staticmethod
-    def get_peft_config(peft_type: str):
+    def get_peft_config(peft_type: str) -> LoraConfig:
         """
-        Retrieve the PEFT configuration based on the PEFT type.
+        Retrieves the PEFT configuration for the specified method.
+
+        Args:
+            peft_type (str): The PEFT method type.
+
+        Returns:
+            LoraConfig: The configuration object for LoRA.
+
+        Raises:
+            ValueError: If the specified PEFT method is not supported.
         """
         if peft_type == "lora":
-            target_modules = ["c_attn", "c_proj"]
+            target_modules = "all-linear"     # options: "all-linear", "all-attention" or ["attn.c_attn", "attn.c_proj"]
             task_type = "CAUSAL_LM"
             return LoraConfig(
                 r=8,
@@ -44,5 +55,7 @@ class PEFTManager:
                 lora_dropout=0.1,
                 target_modules=target_modules,
                 task_type=task_type,
+                fan_in_fan_out=True,
+                init_lora_weights=True    # options: True, False, 'gaussian', 'olora', 'pissa', 'loftq'
             )
         raise ValueError(f"PEFT method '{peft_type}' is not supported.")

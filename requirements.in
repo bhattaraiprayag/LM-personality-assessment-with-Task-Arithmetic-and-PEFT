@@ -1,0 +1,37 @@
+# # This file is used to generate the requirements.txt file, using this command: pip-compile requirements.in
+
+# # NOTE: If you're not using the requirements.txt file to install dependencies, you can simply install the packages listed below using pip, in this order:
+    # 0: Assuming you have an environment with Python 3.9.16 installed and activated.
+        # If not, you can run the following command to install the dependencies:
+        # conda create --name <env_name> python=3.9.16 --solver=libmamba
+    # 1: pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cu118 --no-cache-dir                           # PyTorch with CUDA 11.8
+    # 2: pip install pandas==2.2.3 pyarrow==19.0.0 datasets==3.2.0 python-dotenv==1.0.1 ftfy==6.3.1 openpyxl==3.1.5 transformers==4.48.2 accelerate==1.3.0 peft==0.14.0 pytorch-lightning==2.5.0.post0 lightning==2.5.0.post0 tensorboard==2.18.0 scikit-learn==1.6.1 wandb==0.19.5 matplotlib==3.9.4 seaborn==0.13.2 pip-tools==7.4.1 black==25.1.0 isort==6.0.0 pylint==3.3.4 flake8==7.1.1 --no-cache-dir                                                 # Other dependencies
+
+
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch==2.4.0+cu118
+torchvision==0.19.0+cu118
+torchaudio==2.4.0+cu118
+
+# Other dependencies
+pandas==2.2.3
+pyarrow==19.0.0
+datasets==3.2.0
+python-dotenv==1.0.1
+ftfy==6.3.1
+openpyxl==3.1.5
+transformers==4.48.2
+accelerate==1.3.0
+peft==0.14.0
+pytorch-lightning==2.5.0.post0
+lightning==2.5.0.post0
+tensorboard==2.18.0
+scikit-learn==1.6.1
+wandb==0.19.5
+matplotlib==3.9.4
+seaborn==0.13.2
+pip-tools==7.4.1
+black==25.1.0
+isort==6.0.0
+pylint==3.3.4
+flake8==7.1.1

@@ -1,12 +1,11 @@
 # src/data_manager.py
-
 """
-Data management module for handling datasets and data loaders.
+Module for managing data loading, preprocessing,
+tokenization, and DataLoader creation for language modeling tasks.
 """
-
 import os
 import random
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -14,15 +13,24 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytorch_lightning as pl
 import torch
+
 from datasets import Dataset
+from datasets import Dataset as HFDataset
+from datasets import load_dataset
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForLanguageModeling
 
+from src.utils.helper import print_output
 
-def seed_worker(worker_id):
+
+def seed_worker(worker_id) -> None:
     """
-    Initializes a unique random seed for each worker process in DataLoader.
+    Sets seeds for random number generators in worker
+    processes for data loading to ensure reproducibility.
+
+    Args:
+        worker_id (int): Unique identifier of the worker process.
     """
     worker_seed = torch.initial_seed() % 2**32
     np.random.seed(worker_seed)
@@ -31,7 +39,20 @@ def seed_worker(worker_id):
 
 class DataManager(pl.LightningDataModule):
     """
-    Manages data loading, preprocessing, and splitting for the experiment.
+    LightningDataModule for preparing and loading datasets for
+    language model training.
+
+    Attributes:
+        args (Namespace): Configuration arguments for data preparation
+            and model training.
+        data_path (str): Base path to the dataset directory.
+        tokenizer (AutoTokenizer): Tokenizer used for encoding text data.
+        data_collator (DataCollatorForLanguageModeling): Data collator
+            for dynamic batching.
+        batch_size (int): Batch size for DataLoaders.
+        num_workers (int): Number of subprocesses for data loading.
+        seed (int): Random seed for reproducibility.
+        generator (torch.Generator): Random number generator with a fixed seed.
     """
 
     def __init__(self, args):
@@ -53,9 +74,13 @@ class DataManager(pl.LightningDataModule):
         self.generator = torch.Generator()
         self.generator.manual_seed(self.seed)
 
-    def choose_dataset(self):
+    def choose_dataset(self) -> str:
         """
-        Choose the dataset based on the dataset name and split.
+        Determines the file path of the dataset based on the selected
+        dataset and split.
+
+        Returns:
+            str: The path to the chosen dataset file.
         """
         if self.args.dataset == "pandora":
             base = "all_comments_since_2015_chunk_0.csv"
@@ -64,37 +89,70 @@ class DataManager(pl.LightningDataModule):
                 if self.args.split == "base":
                     path += base
                 else:
-                    # Example split: "openness-top-5"
                     path += f"splits_balanced/{self.args.split}.csv"
             else:
                 path += base
-        elif self.args.dataset == "jigsaw":  # Jigsaw toxicity dataset
-            base = "jigsaw_combined_for_clm.csv"
-            path = f"{self.data_path}{self.args.dataset}/"
-            if self.args.split is not None:
-                if self.args.split == "base":
-                    path += base
-                else:
-                    print(
-                        f"Split: {self.args.split} is not supported for Jigsaw dataset. "
-                        f"Reverting to {base}."
-                    )
-                    path += base
+        elif self.args.dataset == "emotion":
+            return "USE_HF_TWEET_EVAL_EMOTION"
         else:
             raise ValueError(f"Dataset '{self.args.dataset}' is not supported.")
         return path
 
-    def prepare_splits(self):
+    def load_huggingface_tweet_eval_emotion(self) -> pd.DataFrame:
         """
-        Prepare the train, validation, and test splits.
+        Loads the 'emotion' subset of TweetEval from HuggingFace,
+        filters for anger(0), joy(2), sadness(3),
+        removes occurrences of '@user' or '@ user' from text,
+        filters for the split passed in args (anger, joy, or sadness),
+        returns the resulting data as a Pandas DataFrame with columns [text, label].
+        """
+        ds_dict = load_dataset("cardiffnlp/tweet_eval", "emotion")
+        combined = pd.concat(
+            [
+                ds_dict["train"].to_pandas(),
+                ds_dict["validation"].to_pandas(),
+                ds_dict["test"].to_pandas(),
+            ],
+            ignore_index=True
+        )
+        anger, sadness, joy, optimism = 0, 1, 3, 2
+        combined["text"] = combined["text"].str.replace(r"@ ?user", "", regex=True)
+        combined["text"] = combined["text"].str.replace(r"&amp;", "and", regex=True)
+        combined["text"] = combined["text"].str.replace(r"&lt;", "<", regex=True)
+        combined["text"] = combined["text"].str.replace(r"&gt;", ">", regex=True)
+        combined["text"] = combined["text"].str.replace(r"\n", " ", regex=True)
+        filtered = None
+        if self.args.split == "anger":
+            filtered = combined[combined["label"] == anger].copy()
+        elif self.args.split == "joy":
+            filtered = combined[combined["label"] == joy].copy()
+        elif self.args.split == "sadness":
+            filtered = combined[combined["label"] == sadness].copy()
+        elif self.args.split == "optimism":
+            filtered = combined[combined["label"] == optimism].copy()
+        else:
+            raise ValueError(f"Split '{self.args.split}' is not supported for the 'emotion' dataset.")
+        return filtered
+
+    def prepare_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        Loads the dataset and splits it into training, validation,
+        and test sets.
+
+        Returns:
+            Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: DataFrames
+                for training, validation, and test sets.
         """
         path = self.choose_dataset()
-        dataset = pd.read_csv(path)
-        print(f"Original Dataset: {len(dataset)}")
+        if path == "USE_HF_TWEET_EVAL_EMOTION":
+            dataset = self.load_huggingface_tweet_eval_emotion()
+        else:
+            dataset = pd.read_csv(path)
         if self.args.dataset == "pandora":
             dataset = dataset.rename(columns={"body": "text"})
-        if self.args.dataset == "jigsaw":
-            dataset = dataset.rename(columns={"comment_text": "text"})
+        # print_output(f"Original Dataset: {len(dataset)} rows after loading")
+
+        dataset = dataset.dropna(subset=["text"])
         train_val, test = train_test_split(
             dataset, test_size=0.05, random_state=self.args.seed
         )
@@ -116,21 +174,30 @@ class DataManager(pl.LightningDataModule):
             if test_subset
             else test
         )
-        print(
-            f"Train: {len(train)} / {len(train) / len(dataset) * 100:.2f}% | "
-            f"Val: {len(val)} / {len(val) / len(dataset) * 100:.2f}% | "
-            f"Test: {len(test)} / {len(test) / len(dataset) * 100:.2f}%"
-        )
+        # print_output(
+        #     f"Train: {len(train)} / {len(train) / len(dataset) * 100:.2f}% | "
+        #     f"Val: {len(val)} / {len(val) / len(dataset) * 100:.2f}% | "
+        #     f"Test: {len(test)} / {len(test) / len(dataset) * 100:.2f}%"
+        # )
         return train, val, test
 
-    def tokenize_dataset(self, dataset: pd.DataFrame) -> Dataset:
+    def tokenize_dataset(self, dataset: pd.DataFrame) -> HFDataset:
         """
-        Tokenize the dataset using the tokenizer.
+        Tokenizes the text data in the dataset using the tokenizer.
+
+        Args:
+            dataset (Union[pd.DataFrame, Dataset]): The dataset containing
+                text data to tokenize.
+
+        Returns:
+            Dataset: A Hugging Face Dataset with tokenized inputs.
         """
 
         def tokenize_seqs(examples: Dict[str, List[str]]) -> Dict[str, Any]:
+            bos_token = self.tokenizer.bos_token or "<|startoftext|>"
+            eos_token = self.tokenizer.eos_token or "<|endoftext|>"
             texts_with_special_tokens = [
-                self.tokenizer.bos_token + text + self.tokenizer.eos_token
+                bos_token + (str(text) if text is not None else "") + eos_token
                 for text in examples["text"]
             ]
             tokenized_output = self.tokenizer(
@@ -143,7 +210,7 @@ class DataManager(pl.LightningDataModule):
             return tokenized_output
 
         if isinstance(dataset, pd.DataFrame):
-            dataset = Dataset.from_pandas(dataset)
+            dataset = HFDataset.from_pandas(dataset)
         tokenized_dataset = dataset.map(tokenize_seqs, batched=True)
         columns_to_keep = ["input_ids", "attention_mask"]
         tokenized_dataset = tokenized_dataset.remove_columns(
@@ -155,15 +222,20 @@ class DataManager(pl.LightningDataModule):
         )
         return tokenized_dataset
 
-    def save_tokenized_dataset(
-        self,
-        dataset: Dataset,
-        trait_split: str,
-        split_type: str,
-        subset: Optional[int] = None,
-    ):
+    def save_tokenized_dataset(self, dataset: HFDataset, trait_split: str,
+                               split_type: str, subset: Optional[int] = None) -> None:
         """
-        Save the tokenized dataset as a Parquet file.
+        Saves the tokenized dataset to a Parquet file for faster loading
+        in future runs.
+
+        Args:
+            dataset (Dataset): The tokenized dataset to save.
+            trait_split (str): Identifier for the trait split (e.g.,
+                'openness-top-5').
+            split_type (str): Type of data split ('train', 'val',
+                or 'test').
+            subset (Optional[int]): Number of samples in the subset,
+                if applicable.
         """
         df = dataset.to_pandas()
         subset_str = f"-{subset}" if subset else ""
@@ -175,28 +247,41 @@ class DataManager(pl.LightningDataModule):
             table, save_to_path, compression="zstd", use_dictionary=True, version="2.6"
         )
 
-    def load_tokenized_dataset(
-        self, trait_split: str, split_type: str, subset: Optional[int] = None
-    ):
+    def load_tokenized_dataset(self, trait_split: str, split_type: str,
+                               subset: Optional[int] = None) -> HFDataset:
         """
-        Load the tokenized dataset from a Parquet file.
+        Loads a previously saved tokenized dataset from a Parquet file.
+
+        Args:
+            trait_split (str): Identifier for the trait split.
+            split_type (str): Type of data split.
+            subset (Optional[int]): Number of samples in the subset,
+                if applicable.
+
+        Returns:
+            Dataset: The loaded tokenized dataset.
         """
         subset_str = f"-{subset}" if subset else ""
         filename = f"{trait_split}-{split_type}-seed{self.seed}{subset_str}.parquet"
         load_from_path = f"{self.data_path}{self.args.dataset}/tokenized/{filename}"
         df = pd.read_parquet(load_from_path)
-        dataset = Dataset.from_pandas(df)
+        dataset = HFDataset.from_pandas(df)
         return dataset
 
-    def prepare_data(self):
+    def prepare_data(self) -> None:
         """
-        Placeholder method for data preparation.
+        Prepares the data for training. To be implemented in future.
         """
-        # # TO DO: To be implemented later.
+        pass
 
-    def setup(self, stage: Optional[str] = None):
+    def setup(self, stage: Optional[str] = None) -> None:
         """
-        Setup the data for different stages (fit, test).
+        Sets up the DataManager by preparing data splits and
+        tokenizing datasets.
+
+        Args:
+            stage (Optional[str]): Stage of the setup ('fit', 'validate',
+                'test', or 'predict').
         """
         train_df, val_df, test_df = self.prepare_splits()
         try:
@@ -213,19 +298,22 @@ class DataManager(pl.LightningDataModule):
             self.tokenized_train = self.tokenize_dataset(train_df)
             self.tokenized_val = self.tokenize_dataset(val_df)
             self.tokenized_test = self.tokenize_dataset(test_df)
-            self.save_tokenized_dataset(
-                self.tokenized_train, self.args.split, "train", self.args.subset
-            )
-            self.save_tokenized_dataset(
-                self.tokenized_val, self.args.split, "val", self.args.subset
-            )
-            self.save_tokenized_dataset(
-                self.tokenized_test, self.args.split, "test", self.args.subset
-            )
+            self.save_tokenized_dataset(self.tokenized_train,
+                                        self.args.split,
+                                        "train", self.args.subset)
+            self.save_tokenized_dataset(self.tokenized_val,
+                                        self.args.split, "val",
+                                        self.args.subset)
+            self.save_tokenized_dataset(self.tokenized_test,
+                                        self.args.split, "test",
+                                        self.args.subset)
 
-    def train_dataloader(self):
+    def train_dataloader(self) -> DataLoader:
         """
-        Create the train dataloader.
+        Creates the DataLoader for the training dataset.
+
+        Returns:
+            DataLoader: DataLoader for training data.
         """
         return DataLoader(
             self.tokenized_train,
@@ -240,9 +328,12 @@ class DataManager(pl.LightningDataModule):
             generator=self.generator,
         )
 
-    def val_dataloader(self):
+    def val_dataloader(self) -> DataLoader:
         """
-        Create the validation dataloader.
+        Creates the DataLoader for the validation dataset.
+
+        Returns:
+            DataLoader: DataLoader for validation data.
         """
         return DataLoader(
             self.tokenized_val,
@@ -256,9 +347,12 @@ class DataManager(pl.LightningDataModule):
             generator=self.generator,
         )
 
-    def test_dataloader(self):
+    def test_dataloader(self) -> DataLoader:
         """
-        Create the test dataloader.
+        Creates the DataLoader for the test dataset.
+
+        Returns:
+            DataLoader: DataLoader for test data.
         """
         return DataLoader(
             self.tokenized_test,

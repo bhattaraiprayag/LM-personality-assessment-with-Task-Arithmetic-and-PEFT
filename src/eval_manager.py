@@ -1,118 +1,220 @@
 # src/eval_manager.py
-
 """
-Evaluation management module for assessing model personality traits.
+Module for evaluating language models by extracting and analyzing
+their responses to specific prompts.
 """
-
-from typing import List, Optional
+from __future__ import annotations  # CAUTION: has to always be placed at the top of the script
 
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn.functional as F
+
+from typing import List, Optional, Dict, Union
+from torch.utils.data import DataLoader
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+
+def get_inventory(name: str) -> Dict:
+    """
+    Returns a dict with keys:
+        • anchors  (List[str])
+        • items    (List[str])
+        • question_stem
+        • statement_template  (must contain '{item}')
+    """
+    from experiment_config import INVENTORIES
+    import pandas as pd
+
+    cfg = INVENTORIES[name].copy()
+    if "items" not in cfg:  # CSV variant (IPIP‑120): read once, cache in cfg
+        df = pd.read_csv(cfg.pop("items_file"))
+        cfg["items"] = df["phrase"].tolist()
+    return cfg
 
 
 class EvalManager:
     """
-    Manages the evaluation of model outputs against personality traits.
+    Class containing methods to evaluate a language model's responses
+    to personality assessment questions.
     """
+    def __init__(
+        self,
+        model_name: str = "gpt2",
+        device: str = "cuda",
+        model: Optional[torch.nn.Module] = None,
+        tokenizer: Optional[AutoTokenizer] = None,
+    ) -> None:
+        self.device = torch.device(device)
 
-    @staticmethod
-    def extract_answers(
-        model,
-        tokenizer,
-        question: str,
-        answers: list,
-        values: Optional[list] = None,
-        temps: Optional[List[float]] = None,
-        variant=1,
-        instr_tag_before="",
-        instr_tag_after="",
+        if tokenizer is None:
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+        if tokenizer.pad_token_id is None:
+            tokenizer.pad_token = tokenizer.eos_token
+
+        if model is None:
+            model = AutoModelForCausalLM.from_pretrained(model_name).to(self.device).eval()
+
+        self.model = model.to(self.device)
+        self.tokenizer = tokenizer
+
+    @torch.no_grad()
+    def score_likert(
+        self,
+        items: List[str] | None = None,
+        anchors: List[str] | None = None,
+        *,
+        question_stem: str | None = None,
+        statement_template: str = "STATEMENT: {item}",
+        inventory_name: str | None = None,
+        include_options: Union[bool, str] = "both",
+        batch_size: int = 5,
+        return_dataframe: bool = True,
     ):
         """
-        Extracts token probabilities from the model given a question stem and possible
-        answers that are based on the BFI-10 inventory.
+        Supply **either** (`items`, `anchors`, `question_stem`) yourself
+        **or** just `inventory_name="BFI10" | "PANASX" | "IPIP120" | …`.
         """
-        tokenizer.add_special_tokens({"bos_token": "<|startoftext|>"})
-        tokenizer.pad_token = tokenizer.eos_token
-        if values is None:
-            values = [1] * len(answers)
-        if temps is None:
-            temps = [1.0]
-        input_texts = [
-            f"{tokenizer.bos_token}{instr_tag_before}{question}{instr_tag_after} {answer}{tokenizer.eos_token}"
-            for answer in answers
-        ]
-        input_ids, attention_mask = tokenizer(
-            input_texts, padding=True, return_tensors="pt"
-        ).values()
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        input_ids = input_ids.to(device)
-        attention_mask = attention_mask.to(device)
-        attention_mask[:, 0] = 0
-        question_length = len(tokenizer(question)["input_ids"])
-        model = model.to(device)
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-        result_df = pd.DataFrame()
-        for temp in temps:
-            if variant in (1, 2):
-                probs = torch.log_softmax(outputs.logits / temp, dim=-1).detach()
-                _ids = input_ids[:, 1:]
-                gen_probs = torch.gather(probs, 2, _ids[:, :, None]).squeeze(-1)
-                if variant == 2:
-                    gen_probs = torch.log_softmax(gen_probs / temp, dim=0)
-                batch_df = pd.DataFrame()
-                for input_sentence, input_probs, answer, value in zip(
-                    _ids, gen_probs, answers, values
-                ):
-                    text_sequence = []
-                    for token, p in list(zip(input_sentence, input_probs))[
-                        question_length:
-                    ]:
-                        if token not in tokenizer.all_special_ids and token != 29871:
-                            text_sequence.append((tokenizer.decode(token), p.item()))
-                    answer_df = pd.DataFrame(text_sequence, columns=["token", "prob"])
-                    answer_df["answer"] = answer
-                    answer_df["value"] = value
-                    batch_df = pd.concat([batch_df, answer_df])
-                batch_df = (
-                    batch_df.drop(columns=["token"])
-                    .groupby(["answer", "value"])
-                    .mean()
-                    .reset_index()
-                )
-                batch_df["temp"] = temp
-                batch_df["answer"] = batch_df["answer"].replace("</s>", "N/A")
-                result_df = pd.concat([result_df, batch_df])
-        one_word_prompt = (
-            "Complete the following with a one-word adjective that aptly describes "
-            "your personality: "
-        )
-        combined_one_word_question = one_word_prompt + question + " is"
-        question_input_ids = tokenizer(
-            f"{tokenizer.pad_token}{combined_one_word_question}", return_tensors="pt"
-        ).input_ids.to(device)
-        attention_mask = question_input_ids.ne(tokenizer.pad_token_id).long()
-        generated_outputs = model.model.generate(
-            question_input_ids,
-            attention_mask=attention_mask,
-            max_new_tokens=1,
-            num_return_sequences=1,
-            do_sample=False,  # Greedy decoding for deterministic output, if False
-            pad_token_id=tokenizer.pad_token_id,
-            eos_token_id=tokenizer.eos_token_id,
-            temperature=0.5,  # Sampling temperature
-            # top_p=0.95,
-        )
-        decoded_answer = tokenizer.decode(
-            generated_outputs[0], skip_special_tokens=True
-        ).strip()
-        # print(f"Model's continuation of the question: {decoded_answer}")
+        import pandas as pd
+        if inventory_name is not None:
+            inv = get_inventory(inventory_name)
+            items = inv["items"]
+            anchors = inv["anchors"]
+            question_stem = inv["question_stem"]
+            statement_template = inv["statement_template"]
+        if None in (items, anchors, question_stem):
+            raise ValueError(
+                "Must provide `inventory_name` or explicit `items`, `anchors`, `question_stem`."
+            )
+        items = [item.lower() for item in items]
 
-        # Normalize the probabilities (for variant 1)
-        if variant == 1:
-            log_probs = np.array(result_df["prob"].values, dtype=np.float64)
-            log_probs_shifted = log_probs - np.max(log_probs)
-            probs = np.exp(log_probs_shifted)
-            normalized_probs = probs / probs.sum()
-            result_df["norm_probs"] = normalized_probs
-        return result_df.reset_index(drop=True)
+        if include_options == "both":
+            variants = (True, False)
+        elif include_options == "include":
+            variants = (True,)
+        elif include_options == "exclude":
+            variants = (False,)
+        else:
+            raise ValueError(f"Invalid value for `include_options`: {include_options!r}")
+
+        anchor_ids = [
+            self.tokenizer(" " + a, add_special_tokens=False).input_ids for a in anchors
+        ]
+        anchor_lens = [len(ids) for ids in anchor_ids]
+
+        all_variant_probs = []
+        variant_tags = []
+        dl = DataLoader(items, batch_size=batch_size, shuffle=False)
+
+        for show_options in variants:
+            variant_probs = []
+            for batch_items in dl:
+                toks, mask = self._collate_batch(
+                    batch_items=batch_items,
+                    anchor_ids=anchor_ids,
+                    anchor_lens=anchor_lens,
+                    question_stem=question_stem,
+                    statement_template=statement_template,
+                    anchors=anchors,
+                    include_options=show_options,
+                )
+                avg_loss = self._forward_avg_loss(toks, mask)
+                probs = self._avg_loss_to_probs(avg_loss, len(batch_items))
+                variant_probs.append(probs)
+
+            variant_tensor = torch.cat(variant_probs, dim=0)
+            all_variant_probs.append(variant_tensor)
+            tag = "include" if show_options else "exclude"
+            variant_tags.extend([tag] * len(items))
+
+        all_probs = torch.vstack(all_variant_probs)
+
+        if not return_dataframe:
+            return all_probs
+
+        num_cols = list(range(1, len(anchors) + 1))
+        df = pd.DataFrame(all_probs.cpu().numpy(), columns=num_cols)
+        df.insert(0, "item", items * len(variants))
+        df.insert(1, "likert_in_prompt", variant_tags)
+        return df
+
+    def _build_prompt(
+        self,
+        item: str,
+        anchors: List[str],
+        question_stem: str,
+        statement_template: str,
+        include_options: bool,
+    ) -> str:
+        if include_options:
+            bullets = "\n".join(f"{a}" for a in anchors)
+            options_block = f"OPTIONS (choose one):\n{bullets}\n\n"
+        else:
+            options_block = ""
+
+        statement = statement_template.format(item=item)
+
+        return (
+            f"QUESTION: {question_stem}\n\n"
+            f"{statement}\n\n"
+            f"{options_block}"
+            f"YOUR RESPONSE: "
+        )
+
+    def _collate_batch(
+        self,
+        batch_items: List[str],
+        anchor_ids: List[List[int]],
+        anchor_lens: List[int],
+        question_stem: str,
+        statement_template: str,
+        anchors: List[str],
+        *,
+        include_options: bool,
+    ):
+        prompts = [
+            self._build_prompt(
+                item, anchors, question_stem, statement_template, include_options
+            )
+            for item in batch_items
+        ]
+        prompt_ids = [self.tokenizer(p).input_ids for p in prompts]
+        ctx_lens = [len(ids) for ids in prompt_ids]
+
+        tok_rows, mask_rows = [], []
+        for ctx, ctx_len in zip(prompt_ids, ctx_lens):
+            for a_ids, a_len in zip(anchor_ids, anchor_lens):
+                row_toks = ctx + a_ids
+                row_mask = [0] * ctx_len + [1] * a_len
+                tok_rows.append(row_toks)
+                mask_rows.append(row_mask)
+
+        max_len = max(len(r) for r in tok_rows)
+        toks = torch.zeros(len(tok_rows), max_len, dtype=torch.long, device=self.device)
+        mask = torch.zeros_like(toks)
+
+        for i, (row_toks, row_mask) in enumerate(zip(tok_rows, mask_rows)):
+            toks[i, : len(row_toks)] = torch.tensor(row_toks, device=self.device)
+            mask[i, : len(row_mask)] = torch.tensor(row_mask, device=self.device)
+
+        return toks, mask
+
+    def _forward_avg_loss(self, toks: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        logits = self.model(toks).logits
+        shift_logits = logits[..., :-1, :].contiguous()
+        shift_toks = toks[..., 1:].contiguous()
+
+        loss_flat = F.cross_entropy(
+            shift_logits.view(-1, shift_logits.size(-1)),
+            shift_toks.view(-1),
+            reduction="none",
+        ).view(toks.size(0), -1)
+
+        shift_mask = mask[..., 1:]
+        sum_loss = (loss_flat * shift_mask).sum(dim=1)
+        token_count = shift_mask.sum(dim=1)
+        return sum_loss / token_count
+
+    def _avg_loss_to_probs(self, avg_loss: torch.Tensor, batch_items: int) -> torch.Tensor:
+        loss = avg_loss.view(batch_items, -1)
+        return torch.softmax(-loss, dim=1)
