@@ -1,0 +1,75 @@
+[project]
+name = "lm-personality-assessment-with-task-arithmetic-and-peft"
+version = "0.1.0"
+description = "Independent research project on LM personality assessment with task arithmetic and PEFT."
+requires-python = ">=3.11"
+dependencies = [
+    "accelerate",
+    "datasets",
+    "ftfy",
+    "lightning",
+    "matplotlib",
+    "numpy",
+    "openpyxl",
+    "pandas",
+    "peft",
+    "pyarrow",
+    "python-dotenv",
+    "pytorch-lightning",
+    "scikit-learn",
+    "scipy",
+    "seaborn",
+    "tensorboard",
+    "torch==2.9.1",
+    "tqdm",
+    "transformers",
+    "wandb",
+]
+
+[dependency-groups]
+dev = [
+    "mypy",
+    "pandas-stubs",
+    "ruff",
+    "types-tqdm",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+follow_imports = "skip"
+check_untyped_defs = true
+warn_unused_configs = true
+exclude = "(^plots/|^report/)"
+disable_error_code = [
+    "assignment",
+    "attr-defined",
+    "arg-type",
+    "index",
+    "misc",
+    "no-any-return",
+    "no-untyped-call",
+    "no-untyped-def",
+    "type-arg",
+    "union-attr",
+    "untyped-decorator",
+    "var-annotated",
+]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
